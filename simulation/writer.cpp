@@ -79,10 +79,10 @@ void Writer::open(const std::string &fname)
 {
     writer = io.Open(fname, adios2::Mode::Write);
     // the key is fixed here
-    io.SetParameters({{"writerID", fname}});
+    //io.SetParameters({{"verbose", "4"}, {"writerID", fname}});
 }
 
-void Writer::write(int step, const GrayScott &sim)
+void Writer::write(int& step, const GrayScott &sim)
 {
 
     /*

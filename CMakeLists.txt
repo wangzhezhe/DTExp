@@ -13,10 +13,10 @@ find_package(ADIOS2 REQUIRED)
 
 
 option(USE_TIMERS "Use profiling timers")
-if(USE_TIMERS)
+#if(USE_TIMERS)
   message(STATUS "Enabling profiling timers")
   add_definitions(-DENABLE_TIMERS)
-endif()
+#endif()
 
 # We are not using the C++ API of MPI, this will stop the compiler look for it
 add_definitions(-DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX)
@@ -39,6 +39,19 @@ add_executable(gray-scott-pdf
   simulation/writer.cpp
 )
 target_link_libraries(gray-scott-pdf adios2::adios2 MPI::MPI_C)
+
+#add_executable(gray-scott-pdf-2
+#  simulation/simwithpdf2.cpp
+#  simulation/gray-scott.cpp
+#  simulation/settings.cpp
+#  simulation/writer.cpp
+#)
+#target_link_libraries(gray-scott-pdf-2 adios2::adios2 MPI::MPI_C)
+
+
+add_executable(tempinline simulation/tempinline.cpp)
+target_link_libraries(tempinline adios2::adios2 MPI::MPI_C)
+
 
 
 option(VTK "Build VTK apps")

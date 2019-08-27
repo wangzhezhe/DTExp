@@ -6,17 +6,19 @@
  * Norbert Podhorszki, pnorbert@ornl.gov
  *
  */
-
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
 
 #include "adios2.h"
+#include "../common/timer.hpp"
 
 bool epsilon(double d) { return (d < 1.0e-20); }
 bool epsilon(float d) { return (d < 1.0e-20); }
@@ -188,6 +190,17 @@ int main(int argc, char *argv[])
 
     // read data per timestep
     int stepAnalysis = 0;
+
+#ifdef ENABLE_TIMERS
+    Timer timer_compute;
+
+    std::ostringstream log_fname;
+    log_fname << "pdf_pe_" << rank << ".log";
+
+    std::ofstream log(log_fname.str());
+    log << "step\tcompute_pdf" << std::endl;
+#endif
+
     while (true) {
 
         // Begin step
@@ -291,11 +304,26 @@ int main(int argc, char *argv[])
             minmax_v = std::make_pair(*mmv.first, *mmv.second);
         }
 
+        
+
         // Compute PDF
         std::vector<double> pdf_u;
         std::vector<double> bins_u;
+
+        #ifdef ENABLE_TIMERS
+        MPI_Barrier(comm);
+        timer_compute.start();
+        #endif
+        
         compute_pdf(u, shape, start1, count1, nbins, minmax_u.first,
                     minmax_u.second, pdf_u, bins_u);
+
+        #ifdef ENABLE_TIMERS
+        MPI_Barrier(comm);
+        double time_compute = timer_compute.stop();
+        log << stepAnalysis+1 << "\t" << time_compute << std::endl;
+        #endif
+
 
         std::vector<double> pdf_v;
         std::vector<double> bins_v;

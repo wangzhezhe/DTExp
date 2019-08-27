@@ -286,6 +286,7 @@ int main(int argc, char *argv[])
         timer_compute.start();
 #endif
 
+        //todo add the checking operation for the pdf
         auto polyData = compute_isosurface(varU, u, isovalue);
 
 #ifdef ENABLE_TIMERS
@@ -294,8 +295,17 @@ int main(int argc, char *argv[])
         timer_write.start();
 #endif
 
-        write_adios(writer, polyData, varPoint, varCell, varNormal, varOutStep,
-                    step, comm);
+        //write_adios(writer, polyData, varPoint, varCell, varNormal, varOutStep,
+        //            step, comm);
+        std::string dir = "./vtkdata";
+        
+        char countstr[50];
+        sprintf(countstr, "%04d", step);
+        
+        std::string fname = dir + "/vtkiso_" +std::string(countstr) + ".vtk";
+        //the format here is the vtkXMLPoly 
+        write_vtk(fname,polyData);
+        std::cout << "ok for ts " << step << std::endl;
 
 #ifdef ENABLE_TIMERS
         double time_write = timer_write.stop();
