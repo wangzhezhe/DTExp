@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
     log_fname << "isosurface_pe_" << rank << ".log";
 
     std::ofstream log(log_fname.str());
-    log << "step\ttotal_iso\tread_iso\tcompute_iso\twrite_iso" << std::endl;
+    log << "step\ttotal_iso\tread_iso\tcompute_write_iso" << std::endl;
 #endif
 
     while (true) {
@@ -289,11 +289,7 @@ int main(int argc, char *argv[])
         //todo add the checking operation for the pdf
         auto polyData = compute_isosurface(varU, u, isovalue);
 
-#ifdef ENABLE_TIMERS
-        double time_compute = timer_compute.stop();
-        MPI_Barrier(comm);
-        timer_write.start();
-#endif
+
 
         //write_adios(writer, polyData, varPoint, varCell, varNormal, varOutStep,
         //            step, comm);
@@ -303,24 +299,29 @@ int main(int argc, char *argv[])
         sprintf(countstr, "%04d", step);
         
         std::string fname = dir + "/vtkiso_" +std::string(countstr) + ".vtk";
-        //the format here is the vtkXMLPoly 
+        //the format here is the vtk
         write_vtk(fname,polyData);
         std::cout << "ok for ts " << step << std::endl;
 
 #ifdef ENABLE_TIMERS
-        double time_write = timer_write.stop();
+        double time_compute = timer_compute.stop();
+        //MPI_Barrier(comm);
+        //timer_write.start();
+#endif
+
+#ifdef ENABLE_TIMERS
+        //double time_write = timer_write.stop();
         double time_step = timer_total.stop();
         MPI_Barrier(comm);
 
         log << step << "\t" << time_step << "\t" << time_read << "\t"
-            << time_compute << "\t" << time_write << std::endl;
+            << time_compute << std::endl;
 #endif
     }
 
 #ifdef ENABLE_TIMERS
     log << "total\t" << timer_total.elapsed() << "\t" << timer_read.elapsed()
-        << "\t" << timer_compute.elapsed() << "\t" << timer_write.elapsed()
-        << std::endl;
+        << "\t" << timer_compute.elapsed() << std::endl;
 
     log.close();
 #endif

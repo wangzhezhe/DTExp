@@ -32,27 +32,13 @@ target_link_libraries(gray-scott adios2::adios2 MPI::MPI_C)
 add_executable(pdf_calc analysis/pdf_calc.cpp)
 target_link_libraries(pdf_calc adios2::adios2 MPI::MPI_C)
 
-add_executable(gray-scott-pdf
+add_executable(simwithpdf
   simulation/simwithpdf.cpp
   simulation/gray-scott.cpp
   simulation/settings.cpp
   simulation/writer.cpp
 )
-target_link_libraries(gray-scott-pdf adios2::adios2 MPI::MPI_C)
-
-#add_executable(gray-scott-pdf-2
-#  simulation/simwithpdf2.cpp
-#  simulation/gray-scott.cpp
-#  simulation/settings.cpp
-#  simulation/writer.cpp
-#)
-#target_link_libraries(gray-scott-pdf-2 adios2::adios2 MPI::MPI_C)
-
-
-add_executable(tempinline simulation/tempinline.cpp)
-target_link_libraries(tempinline adios2::adios2 MPI::MPI_C)
-
-
+target_link_libraries(simwithpdf adios2::adios2 MPI::MPI_C)
 
 option(VTK "Build VTK apps")
 if (VTK_ROOT)
@@ -72,6 +58,12 @@ if (VTK)
     add_executable(isosurface analysis/isosurface.cpp)
     target_link_libraries(isosurface adios2::adios2 ${VTK_LIBRARIES}
       MPI::MPI_C)
+
+
+    add_executable(pdfwithana analysis/pdfwithana.cpp simulation/settings.cpp)
+    target_link_libraries(pdfwithana adios2::adios2 ${VTK_LIBRARIES}
+      MPI::MPI_C)
+
   endif(VTK_FOUND)
 
   find_package(VTK COMPONENTS
@@ -107,3 +99,52 @@ if (VTK)
       MPI::MPI_C)
   endif(VTK_FOUND)
 endif(VTK)
+
+# for meta client
+
+
+# GRPC and Protocol Buffers libraries location
+list(APPEND CMAKE_PREFIX_PATH "~/cworkspace/build/build_grpc" "~/cworkspace/build/build_protobuf")
+
+# Cmake find modules
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+
+find_package(Protobuf REQUIRED)
+find_package(GRPC REQUIRED)
+
+set(PROTOS
+    ${CMAKE_CURRENT_SOURCE_DIR}/protos/metaserver.proto
+)
+
+set(PROTO_SRC_DIR ${CMAKE_CURRENT_BINARY_DIR}/proto-src)
+file(MAKE_DIRECTORY ${PROTO_SRC_DIR})
+include_directories(${PROTO_SRC_DIR})
+
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_SRC_DIR} ${PROTOS})
+grpc_generate_cpp(GRPC_SRCS GRPC_HDRS ${PROTO_SRC_DIR} ${PROTOS})
+
+add_executable(pdfpushmeta 
+analysis/pdfpushmeta.cpp 
+putgetMeta/metaclient.cpp 
+utils/ipTool.cpp
+simulation/settings.cpp
+${PROTO_SRCS} 
+${GRPC_SRCS})
+
+target_link_libraries(pdfpushmeta adios2::adios2 MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf)
+target_include_directories(pdfpushmeta PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+
+add_executable(anapullmeta 
+analysis/anapullmeta.cpp 
+putgetMeta/metaclient.cpp 
+utils/ipTool.cpp
+simulation/settings.cpp
+${PROTO_SRCS} 
+${GRPC_SRCS})
+
+target_link_libraries(anapullmeta adios2::adios2 MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf)
+target_include_directories(anapullmeta PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)

@@ -24,6 +24,9 @@ bool epsilon(float d) { return (d < 1.0e-20); }
 // MPI info
 int rank, procs, wrank;
 
+// adios2 variable declarations
+adios2::Variable<double> var_u_in, var_v_in;
+adios2::Variable<int> var_step_in;
 adios2::Variable<double> var_u_pdf, var_v_pdf;
 adios2::Variable<double> var_u_bins, var_v_bins;
 adios2::Variable<int> var_step_out;
@@ -102,44 +105,139 @@ void compute_pdf(const std::vector<T> &data,
     return;
 }
 
-void DoCheck(adios2::IO &pdfwriter_io, adios2::Engine &pdfwriter, int rank, unsigned int step, bool iffirstStep, GrayScott &sim)
+void DoCheck(adios2::IO &reader_io, adios2::Engine &inlineReader, adios2::IO &pdfwriter_io, adios2::Engine &pdfwriter, int rank, unsigned int step, bool iffirstStep)
 {
     unsigned int stepAnalysis = step;
-    unsigned int simStep = stepAnalysis;
+    // Begin step
+    adios2::StepStatus read_status =
+        inlineReader.BeginStep(adios2::StepMode::Read, 10.0f);
+
+    while (true)
+    {
+        if (read_status == adios2::StepStatus::NotReady)
+        {
+            std::cout << "Stream not ready yet. Waiting...\n";
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
+    if (read_status != adios2::StepStatus::OK)
+    {
+        throw std::runtime_error("read_status is not ok");
+    }
+    int stepSimOut = inlineReader.CurrentStep();
+
+    std::size_t u_global_size, v_global_size;
+    std::size_t u_local_size, v_local_size;
+
+    bool firstStep = true;
+
+    std::vector<std::size_t> shape;
+
+    std::vector<double> u;
+    std::vector<double> v;
+    int simStep = -5;
 
     std::vector<double> pdf_u;
     std::vector<double> pdf_v;
     std::vector<double> bins_u;
     std::vector<double> bins_v;
 
+    // Inquire variable and set the selection at the first step only
+    // This assumes that the variable dimensions do not change across
+    // timesteps
+
+    // Inquire variable
+    var_u_in = reader_io.InquireVariable<double>("U");
+    var_v_in = reader_io.InquireVariable<double>("V");
+    var_step_in = reader_io.InquireVariable<int>("step");
+
+    std::pair<double, double> minmax_u = var_u_in.MinMax();
+    std::pair<double, double> minmax_v = var_v_in.MinMax();
+
+    shape = var_u_in.Shape();
+    int comm_size = procs;
+
+    // Calculate global and local sizes of U and V
+    u_global_size = shape[0] * shape[1] * shape[2];
+    u_local_size = u_global_size / comm_size;
+    v_global_size = shape[0] * shape[1] * shape[2];
+    v_local_size = v_global_size / comm_size;
+
+    size_t count1 = shape[0] / comm_size;
+    size_t start1 = count1 * rank;
+    if (rank == comm_size - 1)
+    {
+        // last process need to read all the rest of slices
+        count1 = shape[0] - count1 * (comm_size - 1);
+    }
+
+    /*std::cout << "  rank " << rank << " slice start={" <<  start1
+            << ",0,0} count={" << count1  << "," << shape[1] << "," << shape[2]
+            << "}" << std::endl;*/
+
+    // Set selection
+    var_u_in.SetSelection(adios2::Box<adios2::Dims>(
+        {start1, 0, 0}, {count1, shape[1], shape[2]}));
+    var_v_in.SetSelection(adios2::Box<adios2::Dims>(
+        {start1, 0, 0}, {count1, shape[1], shape[2]}));
+
+    //don't write if the rank is 0
+    bool shouldIWrite = (!rank || reader_io.EngineType() == "HDF5");
+
     size_t nbins = 100;
 
-    std::vector<double> u = sim.u_noghost();
-    std::vector<double> v = sim.v_noghost();
+    // Declare variables to output <this should only be declared>
+    if (iffirstStep)
+    {
+        var_u_pdf = pdfwriter_io.DefineVariable<double>(
+            "U/pdf", {shape[0], nbins}, {start1, 0}, {count1, nbins});
+        var_v_pdf = pdfwriter_io.DefineVariable<double>(
+            "V/pdf", {shape[0], nbins}, {start1, 0}, {count1, nbins});
 
-    std::vector<std::size_t> shape(3, 0);
-    shape[0] = sim.size_x;
-    shape[1] = sim.size_y;
-    shape[2] = sim.size_z;
+        if (shouldIWrite)
+        {
+            var_u_bins = pdfwriter_io.DefineVariable<double>("U/bins", {nbins},
+                                                             {0}, {nbins});
+            var_v_bins = pdfwriter_io.DefineVariable<double>("V/bins", {nbins},
+                                                             {0}, {nbins});
+            var_step_out = pdfwriter_io.DefineVariable<int>("step");
+        }
+    }
 
-    if (rank == 0)
+    // Read adios2 data
+    inlineReader.Get<double>(var_u_in, u, adios2::Mode::Sync);
+    inlineReader.Get<double>(var_v_in, v, adios2::Mode::Sync);
+
+    std::cout << "value of shouldIWrite: " << shouldIWrite << std::endl;
+    //if (shouldIWrite)
+    //{
+        //fail to get the sim step from the reader???
+        inlineReader.Get<int>(var_step_in, &simStep, adios2::Mode::Sync);
+    //}
+
+    // End adios2 step
+    inlineReader.EndStep();
+
+    if (rank==0)
     {
         std::cout << "PDF Analysis step " << stepAnalysis
-                  << " processing sim output step " << simStep
+                  << " processing sim output step " << stepSimOut
                   << " sim compute step " << simStep << std::endl;
     }
 
     // HDF5 engine does not provide min/max. Let's calculate it
     //        if (reader_io.EngineType() == "HDF5")
-
-    auto mmu = std::minmax_element(u.begin(), u.end());
-    std::pair<double, double> minmax_u = std::make_pair(*mmu.first, *mmu.second);
-    auto mmv = std::minmax_element(v.begin(), v.end());
-    std::pair<double, double> minmax_v = std::make_pair(*mmv.first, *mmv.second);
-
-    int comm_size = procs;
-    size_t count1 = shape[0] / comm_size;
-    size_t start1 = count1 * rank;
+    {
+        auto mmu = std::minmax_element(u.begin(), u.end());
+        minmax_u = std::make_pair(*mmu.first, *mmu.second);
+        auto mmv = std::minmax_element(v.begin(), v.end());
+        minmax_v = std::make_pair(*mmv.first, *mmv.second);
+    }
 
     // Compute PDF
     compute_pdf(u, shape, start1, count1, nbins, minmax_u.first,
@@ -149,30 +247,17 @@ void DoCheck(adios2::IO &pdfwriter_io, adios2::Engine &pdfwriter, int rank, unsi
                 minmax_v.second, pdf_v, bins_v);
 
     // write U, V, and their norms out
-    if (iffirstStep)
-    {
-        var_u_pdf = pdfwriter_io.DefineVariable<double>(
-            "U/pdf", {shape[0], nbins}, {start1, 0}, {count1, nbins});
-        var_v_pdf = pdfwriter_io.DefineVariable<double>(
-            "V/pdf", {shape[0], nbins}, {start1, 0}, {count1, nbins});
-
-        var_u_bins = pdfwriter_io.DefineVariable<double>("U/bins", {nbins},
-                                                         {0}, {nbins});
-        var_v_bins = pdfwriter_io.DefineVariable<double>("V/bins", {nbins},
-                                                         {0}, {nbins});
-        var_step_out = pdfwriter_io.DefineVariable<int>("step");
-    }
-
     pdfwriter.BeginStep();
     //check data
     std::cout << "u size " << pdf_u.size() << std::endl;
     pdfwriter.Put<double>(var_u_pdf, pdf_u.data());
     pdfwriter.Put<double>(var_v_pdf, pdf_v.data());
-
-    pdfwriter.Put<double>(var_u_bins, bins_u.data());
-    pdfwriter.Put<double>(var_v_bins, bins_v.data());
-    pdfwriter.Put<int>(var_step_out, simStep);
-
+    if (shouldIWrite)
+    {
+        pdfwriter.Put<double>(var_u_bins, bins_u.data());
+        pdfwriter.Put<double>(var_v_bins, bins_v.data());
+        pdfwriter.Put<int>(var_step_out, simStep);
+    }
     //if (write_inputvars)
     //{
     //    writer.Put<double>(var_u_out, u.data());
@@ -243,10 +328,28 @@ int main(int argc, char **argv)
 
     adios2::ADIOS adios(settings.adios_config, comm, adios2::DebugON);
 
+    adios2::IO io_main = adios.DeclareIO("SimulationOutput");
+    std::string writerid = "myWriteID";
+    io_main.SetEngine("Inline");
+    io_main.SetParameters(
+                {{"verbose", "4"}, {"writerID", writerid}});
+
+    if (io_main.EngineType() != "Inline")
+    {
+        throw std::runtime_error("the sim output should be the inline type if checking is integrated operation is integrated into the sim");
+    }
+
     adios2::IO io_ckpt = adios.DeclareIO("SimulationCheckpoint");
 
     //the wrapper for the writer enginge
+    Writer writer_main(settings, sim, io_main);
     Writer writer_ckpt(settings, sim, io_ckpt);
+
+    writer_main.open(writerid);
+
+    //inline reader for pdf
+    adios2::Engine inlineReader =
+        io_main.Open("myReadID", adios2::Mode::Read);
 
     adios2::IO pdfwriter_io = adios.DeclareIO("PDFAnalysisOutput");
 
@@ -257,11 +360,14 @@ int main(int argc, char **argv)
 
     if (rank == 0)
     {
+        print_io_settings(io_main);
+        std::cout << "========================================" << std::endl;
         print_settings(settings);
         print_simulator_settings(sim);
         std::cout << "========================================" << std::endl;
 
-        std::cout << "PDF analysis reads from Simulation use function call:  " << std::endl;
+        std::cout << "PDF analysis reads from Simulation using engine type:  "
+                  << io_main.EngineType() << std::endl;
         std::cout << "PDF analysis writes using engine type:                 "
                   << pdfwriter_io.EngineType() << std::endl;
     }
@@ -307,6 +413,8 @@ int main(int argc, char **argv)
                       << std::endl;
         }
 
+        writer_main.write(i, sim);
+
         if (settings.checkpoint &&
             i % (settings.plotgap * settings.checkpoint_freq) == 0)
         {
@@ -336,11 +444,12 @@ int main(int argc, char **argv)
             iffirstStep = false;
         }
 
-        DoCheck(pdfwriter_io, pdfwriter, rank, i, iffirstStep, sim);
+        DoCheck(io_main, inlineReader, pdfwriter_io, pdfwriter, rank, i, iffirstStep);
         std::cout << "ok for do check at ts: " << i << std::endl;
     }
 
     pdfwriter.Close();
+    writer_main.close();
 
 #ifdef ENABLE_TIMERS
     log << "total\t" << timer_total.elapsed() << "\t" << timer_compute.elapsed()

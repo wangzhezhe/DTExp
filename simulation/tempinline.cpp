@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
             adios2::Engine inlineReader =
                 inlineIO.Open("myReadID", adios2::Mode::Read);
 
-            for (int timeStep = 0; timeStep < 3; ++timeStep)
+            for (unsigned int timeStep = 0; timeStep < 3; ++timeStep)
             {
                 inlineWriter.BeginStep();
                 if (rank == 0) // global single value, only saved by rank 0

@@ -1,0 +1,42 @@
+#!/bin/sh
+#SBATCH -N 2
+#SBATCH -p main
+#SBATCH -t 00:03:00
+
+
+DIR=/scratch/zw241/cworkspace/install/install_dataspace/bin
+CONF_DIMS=100
+
+module load openmpi/2.1.1
+
+ifconfig
+
+cd $DIR
+
+rm -f conf dataspaces.conf srv.lck
+
+# set the config file for dataspace
+echo "## Config file for DataSpaces
+ndim = 1
+dims = $CONF_DIMS
+
+max_versions = 1
+lock_type = 3
+" > dataspaces.conf
+
+ 
+mpirun -n 1 dataspaces_server -s 1 &> server.log &
+
+echo "ok to start dataspaces"
+
+# start the read and writer binary to do the test
+
+sleep 1
+
+# copy the da reader and writer here
+
+cp /home/zw241/cworkspace/build/build_ADIOS2/bin/hello_dataSpacesReader .
+cp /home/zw241/cworkspace/build/build_ADIOS2/bin/hello_dataSpacesWriter .
+
+# this one set the engine manucally
+mpirun -n 1 ./hello_dataSpacesWriter &> writer.log &

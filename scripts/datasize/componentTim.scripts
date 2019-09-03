@@ -1,0 +1,36 @@
+#!/bin/sh
+#SBATCH -N 1
+#SBATCH -p main
+#SBATCH -t 00:05:00
+
+# scratch dir
+module load openmpi/2.1.1
+
+PJPATH_SCRATCH=/scratch/zw241/cworkspace/build/build_DTExp
+PJPATH_HOME=/home/zw241/cworkspace/src/DTExp
+
+
+cd $PJPATH_SCRATCH
+cp $PJPATH_HOME/adios2.xml .
+cp $PJPATH_HOME/simulation/settings.json .
+
+mpirun -n 1 ./gray-scott ./settings.json &
+
+# the pdf
+mpirun -n 1 ./pdf_calc gs.bp pdf.bp 100 &
+
+
+if [ ! ./vtkdata ]; then
+  mkdir ./vtkdata;
+fi
+
+
+
+# the iso surface
+mpirun -n 1 ./isosurface gs.bp iso.bp 0.5 
+
+#wait
+
+#cat gray_scott_pe_0.log |grep -v total |cut -d$'\t' -f 3 |python3 py_statistic.py
+#cat isosurface_pe_0.log | grep -v total |cut -d$'\t' -f 4 | python3 py_statistic.py
+#cat pdf_pe_0.log |cut -d $'\t' -f 2| python3 py_statistic.py

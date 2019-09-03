@@ -1,11 +1,10 @@
-/*
- * Analysis code for the Gray-Scott application.
- * Reads variable U and V, and computes the PDF for each 2D slices of U and V.
- * Writes the computed PDFs using ADIOS.
- *
- * Norbert Podhorszki, pnorbert@ornl.gov
- *
- */
+
+
+#include <putgetMeta/metaclient.h>
+#include <utils/ThreadPool.h>
+#include <unistd.h>
+#include <queue>
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -19,15 +18,11 @@
 
 #include "adios2.h"
 #include "../common/timer.hpp"
-
-
+#include "../simulation/settings.h"
 
 bool epsilon(double d) { return (d < 1.0e-20); }
 bool epsilon(float d) { return (d < 1.0e-20); }
 
-/*
- * Function to compute the PDF of a 2D slice
- */
 template <class T>
 void compute_pdf(const std::vector<T> &data,
                  const std::vector<std::size_t> &shape, const size_t start,
@@ -45,32 +40,40 @@ void compute_pdf(const std::vector<T> &data,
     size_t start_pdf = 0;
 
     T binWidth = (max - min) / nbins;
-    for (auto i = 0; i < nbins; ++i) {
+    for (auto i = 0; i < nbins; ++i)
+    {
         bins[i] = min + (i * binWidth);
     }
 
-    if (nbins == 1) {
+    if (nbins == 1)
+    {
         // special case: only one bin
-        for (auto i = 0; i < count; ++i) {
+        for (auto i = 0; i < count; ++i)
+        {
             pdf[i] = slice_size;
         }
         return;
     }
 
-    if (epsilon(max - min) || epsilon(binWidth)) {
+    if (epsilon(max - min) || epsilon(binWidth))
+    {
         // special case: constant array
-        for (auto i = 0; i < count; ++i) {
+        for (auto i = 0; i < count; ++i)
+        {
             pdf[i * nbins + (nbins / 2)] = slice_size;
         }
         return;
     }
 
-    for (auto i = 0; i < count; ++i) {
+    for (auto i = 0; i < count; ++i)
+    {
         // Calculate a PDF for 'nbins' bins for values between 'min' and 'max'
         // from data[ start_data .. start_data+slice_size-1 ]
         // into pdf[ start_pdf .. start_pdf+nbins-1 ]
-        for (auto j = 0; j < slice_size; ++j) {
-            if (data[start_data + j] > max || data[start_data + j] < min) {
+        for (auto j = 0; j < slice_size; ++j)
+        {
+            if (data[start_data + j] > max || data[start_data + j] < min)
+            {
                 std::cout << " data[" << start * slice_size + start_data + j
                           << "] = " << data[start_data + j]
                           << " is out of [min,max] = [" << min << "," << max
@@ -78,7 +81,8 @@ void compute_pdf(const std::vector<T> &data,
             }
             size_t bin = static_cast<size_t>(
                 std::floor((data[start_data + j] - min) / binWidth));
-            if (bin == nbins) {
+            if (bin == nbins)
+            {
                 bin = nbins - 1;
             }
             ++pdf[start_pdf + bin];
@@ -89,25 +93,9 @@ void compute_pdf(const std::vector<T> &data,
     return;
 }
 
-/*
- * Print info to the user on how to invoke the application
- */
-void printUsage()
-{
-    std::cout
-        << "Usage: pdf_calc input output [N] [output_inputdata]\n"
-        << "  input:   Name of the input file handle for reading data\n"
-        << "  output:  Name of the output file to which data must be written\n"
-        << "  N:       Number of bins for the PDF calculation, default = 1000\n"
-        << "  output_inputdata: YES will write the original variables besides "
-           "the analysis results\n\n";
-}
-
-/*
- * MAIN
- */
 int main(int argc, char *argv[])
 {
+
     MPI_Init(&argc, &argv);
     int rank, comm_size, wrank;
 
@@ -120,35 +108,32 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &comm_size);
 
-    if (argc < 3) {
-        std::cout << "Not enough arguments\n";
-        if (rank == 0) printUsage();
+    if (argc != 2)
+    {
+        std::cout << " <infileName>\n";
         MPI_Finalize();
         return 0;
     }
 
+    //init the metaclient
+    MetaClient metaclient = getMetaClient();
+    std::string keyDataOk = "INDICATOR1";
+    std::string keySimFinish = "SIMFINISH";
+    std::string reply = metaclient.Putmetaspace(keySimFinish, "NOTOK");
+    std::cout << "Program finish request recieve: " << reply << std::endl;
+
     std::string in_filename;
-    std::string out_filename;
-    size_t nbins = 1000;
-    bool write_inputvars = false;
+    size_t nbins = 100;
     in_filename = argv[1];
-    out_filename = argv[2];
 
-    if (argc >= 4) {
-        int value = std::stoi(argv[3]);
-        if (value > 0) nbins = static_cast<size_t>(value);
-    }
+    //get grid size from setting
+    Settings settings = Settings::from_json("settings.json");
+    size_t grid_size = settings.L;
+    std::cout << "------use grid size " << grid_size << std::endl;
 
-    if (argc >= 5) {
-        std::string value = argv[4];
-        std::transform(value.begin(), value.end(), value.begin(), ::tolower);
-        if (value == "yes") write_inputvars = true;
-    }
-
-    std::size_t u_global_size, v_global_size;
+    std::size_t u_global_size,
+        v_global_size;
     std::size_t u_local_size, v_local_size;
-
-    bool firstStep = true;
 
     std::vector<std::size_t> shape;
 
@@ -174,19 +159,15 @@ int main(int argc, char *argv[])
 
     // IO objects for reading and writing
     adios2::IO reader_io = ad.DeclareIO("SimulationOutput");
-    adios2::IO writer_io = ad.DeclareIO("PDFAnalysisOutput");
-    if (!rank) {
+    if (!rank)
+    {
         std::cout << "PDF analysis reads from Simulation using engine type:  "
                   << reader_io.EngineType() << std::endl;
-        std::cout << "PDF analysis writes using engine type:                 "
-                  << writer_io.EngineType() << std::endl;
     }
 
     // Engines for reading and writing
     adios2::Engine reader =
         reader_io.Open(in_filename, adios2::Mode::Read, comm);
-    adios2::Engine writer =
-        writer_io.Open(out_filename, adios2::Mode::Write, comm);
 
     bool shouldIWrite = (!rank || reader_io.EngineType() == "HDF5");
 
@@ -203,16 +184,20 @@ int main(int argc, char *argv[])
     log << "step\tcompute_pdf" << std::endl;
 #endif
 
-    while (true) {
+    while (true)
+    {
 
         // Begin step
         adios2::StepStatus read_status =
             reader.BeginStep(adios2::StepMode::Read, 10.0f);
-        if (read_status == adios2::StepStatus::NotReady) {
+        if (read_status == adios2::StepStatus::NotReady)
+        {
             // std::cout << "Stream not ready yet. Waiting...\n";
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             continue;
-        } else if (read_status != adios2::StepStatus::OK) {
+        }
+        else if (read_status != adios2::StepStatus::OK)
+        {
             break;
         }
 
@@ -224,23 +209,20 @@ int main(int argc, char *argv[])
 
         // Inquire variable
         var_u_in = reader_io.InquireVariable<double>("U");
-        var_v_in = reader_io.InquireVariable<double>("V");
         var_step_in = reader_io.InquireVariable<int>("step");
 
         std::pair<double, double> minmax_u = var_u_in.MinMax();
-        std::pair<double, double> minmax_v = var_v_in.MinMax();
 
         shape = var_u_in.Shape();
 
         // Calculate global and local sizes of U and V
         u_global_size = shape[0] * shape[1] * shape[2];
         u_local_size = u_global_size / comm_size;
-        v_global_size = shape[0] * shape[1] * shape[2];
-        v_local_size = v_global_size / comm_size;
 
         size_t count1 = shape[0] / comm_size;
         size_t start1 = count1 * rank;
-        if (rank == comm_size - 1) {
+        if (rank == comm_size - 1)
+        {
             // last process need to read all the rest of slices
             count1 = shape[0] - count1 * (comm_size - 1);
         }
@@ -252,46 +234,19 @@ int main(int argc, char *argv[])
         // Set selection
         var_u_in.SetSelection(adios2::Box<adios2::Dims>(
             {start1, 0, 0}, {count1, shape[1], shape[2]}));
-        var_v_in.SetSelection(adios2::Box<adios2::Dims>(
-            {start1, 0, 0}, {count1, shape[1], shape[2]}));
-
-        // Declare variables to output
-        if (firstStep) {
-            var_u_pdf = writer_io.DefineVariable<double>(
-                "U/pdf", {shape[0], nbins}, {start1, 0}, {count1, nbins});
-            var_v_pdf = writer_io.DefineVariable<double>(
-                "V/pdf", {shape[0], nbins}, {start1, 0}, {count1, nbins});
-
-            if (shouldIWrite) {
-                var_u_bins = writer_io.DefineVariable<double>("U/bins", {nbins},
-                                                              {0}, {nbins});
-                var_v_bins = writer_io.DefineVariable<double>("V/bins", {nbins},
-                                                              {0}, {nbins});
-                var_step_out = writer_io.DefineVariable<int>("step");
-            }
-
-            if (write_inputvars) {
-                var_u_out = writer_io.DefineVariable<double>(
-                    "U", {shape[0], shape[1], shape[2]}, {start1, 0, 0},
-                    {count1, shape[1], shape[2]});
-                var_v_out = writer_io.DefineVariable<double>(
-                    "V", {shape[0], shape[1], shape[2]}, {start1, 0, 0},
-                    {count1, shape[1], shape[2]});
-            }
-            firstStep = false;
-        }
 
         // Read adios2 data
         reader.Get<double>(var_u_in, u);
-        reader.Get<double>(var_v_in, v);
-        if (shouldIWrite) {
+        if (shouldIWrite)
+        {
             reader.Get<int>(var_step_in, &simStep);
         }
 
         // End adios2 step
         reader.EndStep();
 
-        if (!rank) {
+        if (!rank)
+        {
             std::cout << "PDF Analysis step " << stepAnalysis
                       << " processing sim output step " << stepSimOut
                       << " sim compute step " << simStep << std::endl;
@@ -302,54 +257,42 @@ int main(int argc, char *argv[])
         {
             auto mmu = std::minmax_element(u.begin(), u.end());
             minmax_u = std::make_pair(*mmu.first, *mmu.second);
-            auto mmv = std::minmax_element(v.begin(), v.end());
-            minmax_v = std::make_pair(*mmv.first, *mmv.second);
         }
 
         // Compute PDF
         std::vector<double> pdf_u;
         std::vector<double> bins_u;
 
-        #ifdef ENABLE_TIMERS
-        MPI_Barrier(comm);
-        timer_compute.start();
-        #endif
-        
         compute_pdf(u, shape, start1, count1, nbins, minmax_u.first,
                     minmax_u.second, pdf_u, bins_u);
 
-        #ifdef ENABLE_TIMERS
-        MPI_Barrier(comm);
-        double time_compute = timer_compute.stop();
-        log << stepAnalysis+1 << "\t" << time_compute << std::endl;
-        #endif
-
-
-        std::vector<double> pdf_v;
-        std::vector<double> bins_v;
-        compute_pdf(v, shape, start1, count1, nbins, minmax_v.first,
-                    minmax_v.second, pdf_v, bins_v);
-
-        // write U, V, and their norms out
-        writer.BeginStep();
-        writer.Put<double>(var_u_pdf, pdf_u.data());
-        writer.Put<double>(var_v_pdf, pdf_v.data());
-        if (shouldIWrite) {
-            writer.Put<double>(var_u_bins, bins_u.data());
-            writer.Put<double>(var_v_bins, bins_v.data());
-            writer.Put<int>(var_step_out, simStep);
+        //start analytics if the checking indicator is ok
+        //this value shoule be decided based on the output of the compute pdf in real case
+        bool indicator = false;
+        if (simStep % 2 == 0)
+        {
+            indicator = true;
         }
-        if (write_inputvars) {
-            writer.Put<double>(var_u_out, u.data());
-            writer.Put<double>(var_v_out, v.data());
+
+        if (indicator)
+        {
+            //set the metadata to the metadata server
+            //assume the consumer know how to generate the variable
+            std::string metainfo = std::to_string(simStep);
+            std::string reply = metaclient.Putmeta(keyDataOk, metainfo);
+            std::cout << "Put metainfo recieve: " << reply << "for ts " << simStep << std::endl;
         }
-        writer.EndStep();
+
         ++stepAnalysis;
     }
 
     // cleanup
     reader.Close();
-    writer.Close();
     MPI_Finalize();
+
+    //program finish, putmeta
+    reply = metaclient.Putmetaspace(keySimFinish, "OK");
+    std::cout << "Program finish request recieve: " << reply << std::endl;
+
     return 0;
 }
