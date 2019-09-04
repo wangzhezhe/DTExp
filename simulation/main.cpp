@@ -45,7 +45,7 @@ int main(int argc, char **argv)
 {
     //send request to timer that wf start
 MetaClient metaclient = getMetaClient();
-    string reply = metaclient.Recordtime("WFTIMER");
+    string reply = metaclient.Recordtimestart("WFTIMER");
     std::cout << "Timer received: " << reply << std::endl;
 
 

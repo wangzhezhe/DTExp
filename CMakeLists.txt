@@ -97,7 +97,7 @@ endif(VTK)
 
 
 # GRPC and Protocol Buffers libraries location
-list(APPEND CMAKE_PREFIX_PATH "/scratch/zw241/cworkspace/build/build_grpc" "/scratch/zw241/cworkspace/build/build_protobuf")
+list(APPEND CMAKE_PREFIX_PATH "~/cworkspace/build/build_grpc" "~/cworkspace/build/build_protobuf")
 
 # Cmake find modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
@@ -107,6 +107,7 @@ find_package(GRPC REQUIRED)
 
 set(PROTOS
     ${CMAKE_CURRENT_SOURCE_DIR}/protos/metaserver.proto
+    ${CMAKE_CURRENT_SOURCE_DIR}/protos/workflowserver.proto
 )
 
 set(PROTO_SRC_DIR ${CMAKE_CURRENT_BINARY_DIR}/proto-src)
@@ -126,6 +127,20 @@ ${GRPC_SRCS})
 
 target_link_libraries(pdfpushmeta adios2::adios2 MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf)
 target_include_directories(pdfpushmeta PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+
+add_executable(pdfpushevent
+analysis/pdfpushevent.cpp
+putgetMeta/metaclient.cpp  
+putEvent/eventclient.cpp 
+utils/ipTool.cpp
+simulation/settings.cpp
+${PROTO_SRCS} 
+${GRPC_SRCS})
+
+target_link_libraries(pdfpushevent adios2::adios2 MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf)
+target_include_directories(pdfpushevent PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 
@@ -167,18 +182,22 @@ target_include_directories(anapullmeta PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 
-add_executable(testadiosstep 
-analysis/testadiosstep.cpp 
+add_executable(anastartbyevent 
+analysis/anastartbyevent.cpp 
 putgetMeta/metaclient.cpp 
 utils/ipTool.cpp
 simulation/settings.cpp
 ${PROTO_SRCS} 
 ${GRPC_SRCS})
 
-target_link_libraries(testadiosstep adios2::adios2 MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf ${VTK_LIBRARIES})
-target_include_directories(testadiosstep PUBLIC
+target_link_libraries(anastartbyevent adios2::adios2 MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf ${VTK_LIBRARIES})
+target_include_directories(anastartbyevent PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
+
+
+
+
 
 
 endif(VTK)

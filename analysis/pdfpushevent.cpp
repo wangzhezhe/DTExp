@@ -1,6 +1,6 @@
 
 
-#include <putgetMeta/metaclient.h>
+#include <putEvent/eventclient.h>
 #include <putgetMeta/metaclient.h>
 #include <utils/ThreadPool.h>
 #include <unistd.h>
@@ -20,6 +20,8 @@
 #include "adios2.h"
 #include "../common/timer.hpp"
 #include "../simulation/settings.h"
+
+
 
 bool epsilon(double d) { return (d < 1.0e-20); }
 bool epsilon(float d) { return (d < 1.0e-20); }
@@ -277,9 +279,14 @@ int main(int argc, char *argv[])
         {
             //set the metadata to the metadata server
             //assume the consumer know how to generate the variable
-            std::string metainfo = std::to_string(simStep-1);
-            std::string reply = metaclient.Putmeta(keyDataOk, metainfo);
-            std::cout << "Put metainfo recieve: " << reply << " for ts " << simStep << std::endl;
+            std::string metainfots = std::to_string(simStep-1);
+
+            EventClient eventclient=getEventClient();
+            //vector<string> eventList, string source, string metadata, string matchType
+            std::vector<std::string> pushList;
+            pushList.push_back("INTERESTINGTOPIC1");
+            std::string reply = eventclient.Publish(pushList, "testid", metainfots, "NAME");
+            std::cout << "event publish recieve: " << reply << " for ts " << simStep << std::endl;
         }
 
         ++stepAnalysis;

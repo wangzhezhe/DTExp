@@ -1,0 +1,126 @@
+// Copyright 2015 gRPC authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// error code for grpc refer to: https://github.com/grpc/grpc-go/blob/master/codes/codes.go
+
+syntax = "proto3";
+
+package workflowserver;
+
+// The greeting service definition.
+// Todo, update this name
+service Greeter {
+  // test using
+  rpc SayHello (HelloRequest) returns (HelloReply) {}
+  // subscribe service
+  rpc Subscribe (PubSubRequest) returns (PubSubReply) {}
+  // publish service
+  rpc Publish (PubSubRequest) returns (PubSubReply) {}
+
+  rpc GetSubscribedNumber (SubNumRequest) returns (SubNumReply) {}
+
+  rpc Notify (NotifyRequest) returns (NotifyReply) {}
+  
+  //only used by coordinator
+  rpc RecordSub (RecordSubRequest) returns (RecordSubReply) {}
+
+  rpc RedistributeSub (RedistributeRequest) returns (RedistributeReply) {}
+
+  rpc UpdateCluster (UpdateClusterRequest) returns (UpdateClusterReply) {}
+
+}
+
+// The request message containing the user's name.
+message HelloRequest {
+  string name = 1;
+}
+
+// The response message containing the greetings
+message HelloReply {
+  string message = 1;
+}
+
+//TODO divide pub request and subrequest into different part, the clientid is unnecessary for event publish
+message PubSubRequest {
+  //string array
+  repeated string pubsubmessage = 1;
+  string clientid = 2;
+  //CLIENT or SERVER
+  string source = 3;
+  string metadata = 4;
+  string matchtype = 5;
+  string notifyserver = 6;
+}
+
+message PubSubReply {
+  string returnmessage = 1;
+}
+
+
+//determine how many clients subscribe this event 
+//don't set the long name
+message SubNumRequest {
+  repeated string subevent = 1;
+}
+
+message SubNumReply {
+  int32 clientnumber = 1;
+}
+
+// workflow server send request back to eventNotify worker
+message NotifyRequest {
+  string clientid = 1;
+  string metadata = 2;
+}
+
+//eventNotify worker return this reply message to workflow server
+message NotifyReply {
+  string returnmessage = 1;
+  string metadata = 2;
+}
+
+message RecordSubRequest {
+  string serveraddr = 1;
+  string subevent = 2;
+  int32 subnum = 3;
+}
+
+
+message RecordSubReply {
+  string returnmessage = 1;
+}
+
+
+message RedistributeRequest {
+  string subevent = 1;
+  string srcaddr = 2;
+  string destaddr = 3;
+  int32 diff = 4;
+}
+
+
+message RedistributeReply {
+  string returnmessage = 1;
+}
+
+
+message UpdateClusterRequest {
+  string cluster = 1;
+}
+
+
+message UpdateClusterReply {
+  string returnmessage = 1;
+}
+

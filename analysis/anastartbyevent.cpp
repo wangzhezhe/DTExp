@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <queue>
 #include <thread>
-#include <mutex>
 
 #include <vtkImageData.h>
 #include <vtkImageImport.h>
@@ -26,9 +25,6 @@ size_t npz;
 size_t px;
 size_t py;
 size_t pz;
-
-std::mutex taskNeedToFinishMutex;
-size_t taskNeedToFinish = 0;
 
 void write_vtk(const std::string &fname,
                const vtkSmartPointer<vtkPolyData> polyData)
@@ -70,7 +66,14 @@ compute_isosurface(const adios2::Variable<double> &varField,
 void pullandStartAna(int ts, adios2::IO inIO, adios2::Engine reader)
 {
 
+    //todo use the setselection to get the meta and start the analytics
+    //indicate anyway
+    //caculate pdf
+    //todo add the checking operation for the pdf
+    //todo get var_u
+
     std::vector<double> u;
+
 
     adios2::Variable<double> varU = inIO.InquireVariable<double>("U");
 
@@ -96,18 +99,19 @@ void pullandStartAna(int ts, adios2::IO inIO, adios2::Engine reader)
     {
         size_z -= size_z * npz - shape[2];
     }
-
+    /*
     varU.SetSelection({{offset_x, offset_y, offset_z},
                        {size_x + (px != npx - 1 ? 1 : 0),
                         size_y + (py != npy - 1 ? 1 : 0),
                         size_z + (pz != npz - 1 ? 1 : 0)}});
-    //TODO, there are some bugs if set this value as ts
-    //use 0 to replace here, this will not influence the testing
-    varU.SetStepSelection({0, 1});
+*/
+    varU.SetStepSelection({ts, 1});
+
 
     reader.Get<double>(varU, u, adios2::Mode::Sync);
 
     int isovalue = 0.5;
+
 
     auto polyData = compute_isosurface(varU, u, isovalue);
 
@@ -125,9 +129,6 @@ void pullandStartAna(int ts, adios2::IO inIO, adios2::Engine reader)
 
     //sleep adjusted time
     sleep(1);
-    taskNeedToFinishMutex.lock();
-    taskNeedToFinish--;
-    taskNeedToFinishMutex.unlock();
 }
 
 void checkResults(ThreadPool &pool, MetaClient &metaclient)
@@ -156,9 +157,7 @@ void checkMetaAndEnqueue(ThreadPool &pool, MetaClient &metaclient, const adios2:
         //return
 
         std::string simFinishReply = metaclient.Getmetaspace(keySimFinish);
-
-        //Attention!!! remeber to check the finished task !!! instead of only the pool size
-        if (simFinishReply.compare("OK") == 0 && pool.getTaskSize() == 0 && taskNeedToFinish == 0)
+        if (simFinishReply.compare("OK") == 0 && pool.getTaskSize() == 0)
         {
 
             std::cout << "simulation finish and all tasks finish" << std::endl;
@@ -174,9 +173,7 @@ void checkMetaAndEnqueue(ThreadPool &pool, MetaClient &metaclient, const adios2:
             {
                 std::cout << "process data with ts: " << indicatorReply << std::endl;
                 int ts = std::stoi(indicatorReply);
-                taskNeedToFinishMutex.lock();
-                taskNeedToFinish++;
-                taskNeedToFinishMutex.unlock();
+
                 results.push(
                     pool.enqueue([ts, inIO, reader] {
                         return pullandStartAna(ts, inIO, reader);
@@ -184,14 +181,7 @@ void checkMetaAndEnqueue(ThreadPool &pool, MetaClient &metaclient, const adios2:
             }
             else
             {
-                // std::cout << "simFinishReply: " << simFinishReply <<std::endl;
-                // std::cout << "pool.getTaskSize()" << pool.getTaskSize() <<std::endl;
-                //std::cout << "taskNeedToFinish" << taskNeedToFinish <<std::endl;
-                //std::cout << "simFinishReply: " << simFinishReply <<std::endl;
-                //std::cout << "pool.getTaskSize()" << pool.getTaskSize() <<std::endl;
-                //std::cout << "while loop" <<std::endl;
-                //this time should be smaller than the frequency of event updating
-                sleep(0.01);
+                sleep(0.05);
             }
         }
     }
@@ -233,11 +223,12 @@ int main(int argc, char *argv[])
 
     if (argc != 2)
     {
-        std::cout << "<binary> <poolsize>" << std::endl;
+        std::cout << "<binary> eventStr" << std::endl;
         return 0;
     }
 
-    int poolSize = std::stoi(argv[1]);
+    //parse the event notification
+    int ts = std::stoi(argv[1]);
 
     adios2::ADIOS adios("adios2.xml", MPI_COMM_WORLD, adios2::DebugON);
     adios2::IO inIO = adios.DeclareIO("SimulationOutput");
@@ -245,47 +236,15 @@ int main(int argc, char *argv[])
 
     adios2::Engine reader = inIO.Open(input_fname, adios2::Mode::Read);
 
-    adios2::StepStatus read_status =
-        reader.BeginStep(adios2::StepMode::Read, 10.0f);
+    reader.BeginStep();
 
-    while (true)
-    {
-        if (read_status == adios2::StepStatus::NotReady)
-        {
-            // std::cout << "Stream not ready yet. Waiting...\n";
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            continue;
-        }
-        else if (read_status != adios2::StepStatus::OK)
-        {
-            std::cout << "unknown read status: " << read_status << std::endl;
-            return 0;
-        }
-        else
-        {
-            break;
-        }
-    }
+    pullandStartAna(ts, inIO, reader);
 
-    //init the thread pool
+    reader.EndStep();
+    reader.Close();
 
-    ThreadPool pool(poolSize);
+    //tick finish
     MetaClient metaclient = getMetaClient();
-
-    std::thread checkMetaThread(checkMetaAndEnqueue, std::ref(pool), std::ref(metaclient), std::ref(inIO), std::ref(reader));
-    std::thread checkResultsThread(checkResults, std::ref(pool), std::ref(metaclient));
-
-    checkMetaThread.join();
-
-    checkResultsThread.join();
-
-    //not sure why there is bug when add this
-    //reader.EndStep();
-    //reader.Close();
-
-    //send request to timer that wf end
     string reply = metaclient.Recordtimetick("WFTIMER");
-    std::cout << "Timer received: " << reply << std::endl;
-
     return 0;
 }
