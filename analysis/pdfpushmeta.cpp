@@ -119,8 +119,6 @@ int main(int argc, char *argv[])
     MetaClient metaclient = getMetaClient();
     std::string keyDataOk = "INDICATOR1";
     std::string keySimFinish = "SIMFINISH";
-    std::string reply = metaclient.Putmetaspace(keySimFinish, "NOTOK");
-    std::cout << "Program finish request recieve: " << reply << std::endl;
 
     std::string in_filename;
     size_t nbins = 100;
@@ -278,9 +276,9 @@ int main(int argc, char *argv[])
         {
             //set the metadata to the metadata server
             //assume the consumer know how to generate the variable
-            std::string metainfo = std::to_string(simStep);
+            std::string metainfo = std::to_string(simStep-1);
             std::string reply = metaclient.Putmeta(keyDataOk, metainfo);
-            std::cout << "Put metainfo recieve: " << reply << "for ts " << simStep << std::endl;
+            std::cout << "Put metainfo recieve: " << reply << " for ts " << simStep << std::endl;
         }
 
         ++stepAnalysis;
@@ -291,7 +289,7 @@ int main(int argc, char *argv[])
     MPI_Finalize();
 
     //program finish, putmeta
-    reply = metaclient.Putmetaspace(keySimFinish, "OK");
+    std::string reply = metaclient.Putmetaspace(keySimFinish, "OK");
     std::cout << "Program finish request recieve: " << reply << std::endl;
 
     return 0;

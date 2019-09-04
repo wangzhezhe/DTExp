@@ -21,13 +21,6 @@ option(USE_TIMERS "Use profiling timers")
 # We are not using the C++ API of MPI, this will stop the compiler look for it
 add_definitions(-DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX)
 
-add_executable(gray-scott
-  simulation/main.cpp
-  simulation/gray-scott.cpp
-  simulation/settings.cpp
-  simulation/writer.cpp
-)
-target_link_libraries(gray-scott adios2::adios2 MPI::MPI_C)
 
 add_executable(pdf_calc analysis/pdf_calc.cpp)
 target_link_libraries(pdf_calc adios2::adios2 MPI::MPI_C)
@@ -104,7 +97,7 @@ endif(VTK)
 
 
 # GRPC and Protocol Buffers libraries location
-list(APPEND CMAKE_PREFIX_PATH "~/cworkspace/build/build_grpc" "~/cworkspace/build/build_protobuf")
+list(APPEND CMAKE_PREFIX_PATH "/scratch/zw241/cworkspace/build/build_grpc" "/scratch/zw241/cworkspace/build/build_protobuf")
 
 # Cmake find modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
@@ -136,6 +129,31 @@ target_include_directories(pdfpushmeta PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 
+
+add_executable(gray-scott
+  simulation/main.cpp
+  simulation/gray-scott.cpp
+  simulation/settings.cpp
+  simulation/writer.cpp
+  putgetMeta/metaclient.cpp 
+utils/ipTool.cpp
+simulation/settings.cpp
+${PROTO_SRCS} 
+${GRPC_SRCS})
+
+target_link_libraries(gray-scott adios2::adios2 MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf)
+target_include_directories(gray-scott PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+
+
+if (VTK)
+find_package(VTK COMPONENTS
+    FiltersCore
+    IOImage
+    IOXML
+)
+
 add_executable(anapullmeta 
 analysis/anapullmeta.cpp 
 putgetMeta/metaclient.cpp 
@@ -144,7 +162,23 @@ simulation/settings.cpp
 ${PROTO_SRCS} 
 ${GRPC_SRCS})
 
-target_link_libraries(anapullmeta adios2::adios2 MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf)
+target_link_libraries(anapullmeta adios2::adios2 MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf ${VTK_LIBRARIES})
 target_include_directories(anapullmeta PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
+
+add_executable(testadiosstep 
+analysis/testadiosstep.cpp 
+putgetMeta/metaclient.cpp 
+utils/ipTool.cpp
+simulation/settings.cpp
+${PROTO_SRCS} 
+${GRPC_SRCS})
+
+target_link_libraries(testadiosstep adios2::adios2 MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf ${VTK_LIBRARIES})
+target_include_directories(testadiosstep PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+
+
+endif(VTK)

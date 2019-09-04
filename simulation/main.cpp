@@ -2,6 +2,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <putgetMeta/metaclient.h>
 
 #include <adios2.h>
 #include <mpi.h>
@@ -42,6 +43,13 @@ void print_simulator_settings(const GrayScott &s)
 
 int main(int argc, char **argv)
 {
+    //send request to timer that wf start
+MetaClient metaclient = getMetaClient();
+    string reply = metaclient.Recordtime("WFTIMER");
+    std::cout << "Timer received: " << reply << std::endl;
+
+
+
     MPI_Init(&argc, &argv);
     int rank, procs, wrank;
 

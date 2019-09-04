@@ -8,10 +8,7 @@
         ======================================-->
 
     <io name="SimulationOutput">
-        <engine type="BPFile">
-            <parameter key="RendezvousReaderCount" value="0"/>
-            <parameter key="QueueLimit" value="1"/>
-            <parameter key="QueueFullPolicy" value="Discard"/>
+        <engine type="BP4">
         </engine>
         <!--
         <variable name="U">
@@ -33,11 +30,9 @@
         ====================================-->
 
     <io name="PDFAnalysisOutput">
-        <engine type="BPFile">
-            <parameter key="RendezvousReaderCount" value="1"/>
-            <parameter key="QueueLimit" value="5"/>
-            <parameter key="QueueFullPolicy" value="Block"/>
+        <engine type="BP4">
         </engine>
+
     </io>
 
     <!--====================================
@@ -46,8 +41,9 @@
         ====================================-->
 
     <io name="IsosurfaceOutput">
-        <engine type="BPFile">
+        <engine type="BP4">
         </engine>
+
     </io>
 
     <!--====================================
@@ -56,8 +52,9 @@
         ====================================-->
 
     <io name="SimulationCheckpoint">
-        <engine type="BPFile">
+        <engine type="BP4">
         </engine>
+
     </io>
 
 

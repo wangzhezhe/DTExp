@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
     //get grid size from setting
     Settings settings = Settings::from_json("settings.json");
     size_t grid_size = settings.L;
-    std::cout<<"------use grid size "<< grid_size <<std::endl;
+    std::cout << "------use grid size " << grid_size << std::endl;
 
     std::size_t u_global_size,
         v_global_size;
@@ -252,15 +252,22 @@ int main(int argc, char *argv[])
         // Begin step
         adios2::StepStatus read_status =
             reader.BeginStep(adios2::StepMode::Read, 10.0f);
-        if (read_status == adios2::StepStatus::NotReady)
+
+        if (read_status == adios2::StepStatus::OtherError)
+        {
+            std::cout << "---in pdfwithana adios2 status is unknown---" << read_status << std::endl;
+            break;
+        }
+        if (read_status != adios2::StepStatus::OK)
         {
             // std::cout << "Stream not ready yet. Waiting...\n";
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::cout << "get status for pdf " << read_status << std::endl;
+            if (read_status == adios2::StepStatus::EndOfStream)
+            {
+                break;
+            }
             continue;
-        }
-        else if (read_status != adios2::StepStatus::OK)
-        {
-            break;
         }
 
         int stepSimOut = reader.CurrentStep();

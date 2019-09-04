@@ -14,22 +14,38 @@ cd $PJPATH_SCRATCH
 cp $PJPATH_HOME/adios2.xml .
 cp $PJPATH_HOME/simulation/settings.json .
 
+# clean the previous adios file
+rm *.log
+rm -rf gs.bp*
+rm -rf pdf.bp*
+rm -rf iso.bp*
+
+sleep 1
+
 mpirun -n 1 ./gray-scott ./settings.json &
 
 # the pdf
+# use BP4, there is only dir
+while [ ! -d ./gs.bp ]
+do
+    sleep 0.01
+    echo "dir not exist"
+done
+
 mpirun -n 1 ./pdf_calc gs.bp pdf.bp 100 &
 
 
-if [ ! ./vtkdata ]; then
+if [ ! -d ./vtkdata ]; then
   mkdir ./vtkdata;
 fi
-
 
 
 # the iso surface
 mpirun -n 1 ./isosurface gs.bp iso.bp 0.5 
 
-#wait
+#it is dangerous to run in parallel, since the adios is not thread theafty
+
+sleep 5
 
 #cat gray_scott_pe_0.log |grep -v total |cut -d$'\t' -f 3 |python3 py_statistic.py
 #cat isosurface_pe_0.log | grep -v total |cut -d$'\t' -f 4 | python3 py_statistic.py
