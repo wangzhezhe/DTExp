@@ -11,7 +11,7 @@
 #include <vtkPolyData.h>
 #include <vtkSmartPointer.h>
 #include <vtkXMLPolyDataWriter.h>
-
+#include "../simulation/settings.h"
 #include "adios2.h"
 
 std::string keyDataOk = "INDICATOR1";
@@ -128,7 +128,9 @@ void pullandStartAna(int ts, adios2::IO inIO, adios2::Engine reader)
     std::cout << "pullandStartAna,ok for ts: " << ts << std::endl;
 
     //sleep adjusted time
-    sleep(1);
+    Settings settings = Settings::from_json("./settings.json");
+    usleep(1000*5*settings.L);
+    return;
 }
 
 void checkResults(ThreadPool &pool, MetaClient &metaclient)

@@ -6,7 +6,7 @@
  * Keichi Takahashi <keichi@is.naist.jp>
  *
  */
-
+#include <putgetMeta/metaclient.h>
 #include <iostream>
 #include <sstream>
 
@@ -22,6 +22,7 @@
 
 #include "../common/timer.hpp"
 #include <thread>
+#include "../simulation/settings.h"
 
 vtkSmartPointer<vtkPolyData>
 compute_isosurface(const adios2::Variable<double> &varField,
@@ -352,4 +353,13 @@ int main(int argc, char *argv[])
     reader.Close();
 
     MPI_Finalize();
+
+    //add adjusted time 
+    Settings settings = Settings::from_json("./settings.json");
+    usleep(1000*5*settings.L);
+    std::cout<<"adjusted time"<<5*settings.L<<std::endl;
+
+    //tick finish
+    MetaClient metaclient = getMetaClient();
+    string reply = metaclient.Recordtimetick("WFTIMER");
 }

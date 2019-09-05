@@ -17,12 +17,11 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <putgetMeta/metaclient.h>
 
 bool epsilon(double d) { return (d < 1.0e-20); }
 bool epsilon(float d) { return (d < 1.0e-20); }
 
-// MPI info
-int rank, procs, wrank;
 
 adios2::Variable<double> var_u_pdf, var_v_pdf;
 adios2::Variable<double> var_u_bins, var_v_bins;
@@ -102,7 +101,7 @@ void compute_pdf(const std::vector<T> &data,
     return;
 }
 
-bool DoCheck(int rank, unsigned int step, GrayScott &sim)
+bool DoCheck(int rank, int procs, unsigned int step, GrayScott &sim)
 {
     unsigned int stepAnalysis = step;
     unsigned int simStep = stepAnalysis;
@@ -148,7 +147,8 @@ bool DoCheck(int rank, unsigned int step, GrayScott &sim)
     compute_pdf(v, shape, start1, count1, nbins, minmax_v.first,
                 minmax_v.second, pdf_v, bins_v);
 
-    if (step % 2 == 0)
+    //if (step % 2 == 0)
+    if (step == 1)
     {
         return true;
     }
@@ -188,7 +188,14 @@ void print_simulator_settings(const GrayScott &s)
 
 int main(int argc, char **argv)
 {
+    //send request to timer that wf start
+    MetaClient metaclient = getMetaClient();
+    string reply = metaclient.Recordtimestart("WFTIMER");
+    std::cout << "Timer received: " << reply << std::endl;
+    
     MPI_Init(&argc, &argv);
+    int rank, procs, wrank;
+        
 
     MPI_Comm_rank(MPI_COMM_WORLD, &wrank);
 
@@ -198,6 +205,8 @@ int main(int argc, char **argv)
 
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &procs);
+
+
 
     if (argc < 2)
     {
@@ -245,7 +254,7 @@ int main(int argc, char **argv)
             std::cout << "engine type for sim output is " << io_main.EngineType()<< std::endl;
         }
 
-        bool indicator = DoCheck(rank, i, sim);
+        bool indicator = DoCheck(rank, procs,i, sim);
         std::cout << "indicator is " << indicator << " for do check at ts: " << i << std::endl;
 
         if (rank == 0)

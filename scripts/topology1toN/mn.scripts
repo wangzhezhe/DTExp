@@ -1,0 +1,39 @@
+#!/bin/sh
+#SBATCH -N 1
+#SBATCH -p main
+#SBATCH -t 00:05:00
+
+# init
+source /home/zw241/cworkspace/src/DTExp/scripts/basic/init.sh
+
+# start eventworkflowengine
+# start workflow server for event matching
+rm -rf multinodeip          
+export NUM_SERVER=2
+export NUM_GROUPSIZE=2
+export NUM_GROUP=1
+export THREAD_POOL=4
+export NOTIFY_SLEEP=1000
+export COORDINATOR_THRESHOLD=1024
+# 2 4 8 16 32 64
+export TRIGERNUM=2
+export DIR=.
+
+./workflowserver 1500 eth0 $NUM_GROUPSIZE $NUM_GROUP $THREAD_POOL $NOTIFY_SLEEP $COORDINATOR_THRESHOLD 1 $TRIGERNUM >& workflowserver.log &
+
+sleep 0.5
+
+# start sim
+mpirun -n 1 ./gray-scott ./settings.json &> sim.log &
+
+while [ ! -d ./gs.bp ]
+do
+    sleep 0.01
+    echo "gs.bp dir not exist"
+done
+
+# start pdfpushevent 
+./pdfpushevent gs.bp &>pdfpushevent.log &
+
+wait
+

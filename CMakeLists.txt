@@ -25,13 +25,7 @@ add_definitions(-DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX)
 add_executable(pdf_calc analysis/pdf_calc.cpp)
 target_link_libraries(pdf_calc adios2::adios2 MPI::MPI_C)
 
-add_executable(simwithpdf
-  simulation/simwithpdf.cpp
-  simulation/gray-scott.cpp
-  simulation/settings.cpp
-  simulation/writer.cpp
-)
-target_link_libraries(simwithpdf adios2::adios2 MPI::MPI_C)
+
 
 option(VTK "Build VTK apps")
 if (VTK_ROOT)
@@ -48,10 +42,6 @@ if (VTK)
   )
 
   if(VTK_FOUND)
-    add_executable(isosurface analysis/isosurface.cpp)
-    target_link_libraries(isosurface adios2::adios2 ${VTK_LIBRARIES}
-      MPI::MPI_C)
-
 
     add_executable(pdfwithana analysis/pdfwithana.cpp simulation/settings.cpp)
     target_link_libraries(pdfwithana adios2::adios2 ${VTK_LIBRARIES}
@@ -195,9 +185,37 @@ target_include_directories(anastartbyevent PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 
+add_executable(simwithpdf
+simulation/simwithpdf.cpp
+simulation/gray-scott.cpp
+simulation/settings.cpp
+simulation/writer.cpp
+putgetMeta/metaclient.cpp
+utils/ipTool.cpp
+${PROTO_SRCS} 
+${GRPC_SRCS}) 
+
+target_link_libraries(simwithpdf 
+adios2::adios2 
+MPI::MPI_C 
+gRPC::grpc++_reflection 
+protobuf::libprotobuf)
+target_include_directories(simwithpdf PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
 
 
+add_executable(isosurface 
+analysis/isosurface.cpp 
+simulation/settings.cpp
+putgetMeta/metaclient.cpp
+utils/ipTool.cpp
+${PROTO_SRCS} 
+${GRPC_SRCS})
 
-
+target_link_libraries(isosurface adios2::adios2 ${VTK_LIBRARIES} MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf)
+target_include_directories(isosurface PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
 
 endif(VTK)

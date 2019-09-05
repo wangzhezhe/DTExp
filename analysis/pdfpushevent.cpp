@@ -270,7 +270,8 @@ int main(int argc, char *argv[])
         //start analytics if the checking indicator is ok
         //this value shoule be decided based on the output of the compute pdf in real case
         bool indicator = false;
-        if (simStep % 2 == 0)
+        //if (simStep % 2 == 0)
+        if (simStep  == 1)
         {
             indicator = true;
         }

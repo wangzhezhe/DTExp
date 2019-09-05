@@ -44,7 +44,7 @@ void print_simulator_settings(const GrayScott &s)
 int main(int argc, char **argv)
 {
     //send request to timer that wf start
-MetaClient metaclient = getMetaClient();
+    MetaClient metaclient = getMetaClient();
     string reply = metaclient.Recordtimestart("WFTIMER");
     std::cout << "Timer received: " << reply << std::endl;
 
@@ -173,4 +173,6 @@ MetaClient metaclient = getMetaClient();
 #endif
 
     MPI_Finalize();
+
+    metaclient.Recordtimetick("WFTIMER");
 }
