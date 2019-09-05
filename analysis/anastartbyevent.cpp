@@ -244,6 +244,7 @@ int main(int argc, char *argv[])
 
     reader.EndStep();
     reader.Close();
+    MPI_Finalize();
 
     //tick finish
     MetaClient metaclient = getMetaClient();

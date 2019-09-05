@@ -1,6 +1,7 @@
 #include <putgetMeta/metaclient.h>
 #include <utils/ThreadPool.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <queue>
 #include <thread>
 #include <mutex>
@@ -14,8 +15,9 @@
 #include <vtkXMLPolyDataWriter.h>
 
 #include "adios2.h"
+#include "../simulation/settings.h"
 
-std::string keyDataOk = "INDICATOR1";
+std::string keyDataBase = "INDICATOR";
 std::string keySimFinish = "SIMFINISH";
 std::queue<std::future<void>> results;
 
@@ -65,6 +67,16 @@ compute_isosurface(const adios2::Variable<double> &varField,
 
     // Return the isosurface as vtkPolyData
     return mcubes->GetOutput();
+}
+
+void startLocalTask(int ts)
+{
+    char command[200];
+    sprintf(command, "%s %d", "mpirun -n 1 ./anastartbyevent", ts);
+    printf("execute command by local way:(%s)\n", command);
+    //test using
+    system(command);
+    return;
 }
 
 void pullandStartAna(int ts, adios2::IO inIO, adios2::Engine reader)
@@ -121,10 +133,13 @@ void pullandStartAna(int ts, adios2::IO inIO, adios2::Engine reader)
     std::string fname = dir + "/vtkiso_" + std::string(countstr) + ".vtk";
     //the format here is the vtk
     write_vtk(fname, polyData);
-    std::cout << "pullandStartAna,ok for ts: " << ts << std::endl;
+    std::cout << "pullandStartAna, ok for ts: " << ts << std::endl;
 
     //sleep adjusted time
-    sleep(1);
+    Settings settings = Settings::from_json("./settings.json");
+    usleep(1000 * 5 * settings.L);
+    std::cout << "adjusted time " << 5 * settings.L << std::endl;
+
     taskNeedToFinishMutex.lock();
     taskNeedToFinish--;
     taskNeedToFinishMutex.unlock();
@@ -144,10 +159,12 @@ void checkResults(ThreadPool &pool, MetaClient &metaclient)
         {
             break;
         }
+
+        sleep(0.1);
     }
 }
 
-void checkMetaAndEnqueue(ThreadPool &pool, MetaClient &metaclient, const adios2::IO &inIO, adios2::Engine &reader)
+void checkMetaAndEnqueue(ThreadPool &pool, int taskNum, MetaClient &metaclient, const adios2::IO &inIO, adios2::Engine &reader)
 {
     //check the meta when there is info, then trigure specific tasks
     while (true)
@@ -166,32 +183,39 @@ void checkMetaAndEnqueue(ThreadPool &pool, MetaClient &metaclient, const adios2:
         }
         else
         {
+            for (int i = 0; i < taskNum; i++)
 
-            //check the ts
-            std::string indicatorReply = metaclient.Getmeta(keyDataOk);
+            {
+                std::string keyDataOk = keyDataBase + std::to_string(i);
+                //check the ts
+                std::string indicatorReply = metaclient.Getmeta(keyDataOk);
 
-            if (indicatorReply.compare("NULL") != 0)
-            {
-                std::cout << "process data with ts: " << indicatorReply << std::endl;
-                int ts = std::stoi(indicatorReply);
-                taskNeedToFinishMutex.lock();
-                taskNeedToFinish++;
-                taskNeedToFinishMutex.unlock();
-                results.push(
-                    pool.enqueue([ts, inIO, reader] {
-                        return pullandStartAna(ts, inIO, reader);
-                    }));
-            }
-            else
-            {
-                // std::cout << "simFinishReply: " << simFinishReply <<std::endl;
-                // std::cout << "pool.getTaskSize()" << pool.getTaskSize() <<std::endl;
-                //std::cout << "taskNeedToFinish" << taskNeedToFinish <<std::endl;
-                //std::cout << "simFinishReply: " << simFinishReply <<std::endl;
-                //std::cout << "pool.getTaskSize()" << pool.getTaskSize() <<std::endl;
-                //std::cout << "while loop" <<std::endl;
-                //this time should be smaller than the frequency of event updating
-                sleep(0.01);
+                if (indicatorReply.compare("NULL") != 0)
+                {
+                    
+                    std::cout << "process data with key " << keyDataOk << "for ts: " << indicatorReply << std::endl;
+                    int ts = std::stoi(indicatorReply);
+                    taskNeedToFinishMutex.lock();
+                    taskNeedToFinish++;
+                    taskNeedToFinishMutex.unlock();
+                    results.push(
+                        pool.enqueue([ts, inIO, reader] {
+                            //return pullandStartAna(ts, inIO, reader);
+                            //ana is started by separate program
+                            return startLocalTask(ts);
+                        }));
+                }
+                else
+                {
+                    // std::cout << "simFinishReply: " << simFinishReply <<std::endl;
+                    // std::cout << "pool.getTaskSize()" << pool.getTaskSize() <<std::endl;
+                    //std::cout << "taskNeedToFinish" << taskNeedToFinish <<std::endl;
+                    //std::cout << "simFinishReply: " << simFinishReply <<std::endl;
+                    //std::cout << "pool.getTaskSize()" << pool.getTaskSize() <<std::endl;
+                    //std::cout << "while loop" <<std::endl;
+                    //this time should be smaller than the frequency of event updating
+                    sleep(0.01);
+                }
             }
         }
     }
@@ -231,13 +255,14 @@ int main(int argc, char *argv[])
     py = coords[1];
     pz = coords[2];
 
-    if (argc != 2)
+    if (argc != 3)
     {
-        std::cout << "<binary> <poolsize>" << std::endl;
+        std::cout << "<binary> <poolsize> <processId>" << std::endl;
         return 0;
     }
 
     int poolSize = std::stoi(argv[1]);
+    int taskNum = std::stoi(argv[2]);
 
     adios2::ADIOS adios("adios2.xml", MPI_COMM_WORLD, adios2::DebugON);
     adios2::IO inIO = adios.DeclareIO("SimulationOutput");
@@ -272,20 +297,18 @@ int main(int argc, char *argv[])
     ThreadPool pool(poolSize);
     MetaClient metaclient = getMetaClient();
 
-    std::thread checkMetaThread(checkMetaAndEnqueue, std::ref(pool), std::ref(metaclient), std::ref(inIO), std::ref(reader));
+    std::thread checkMetaThread(checkMetaAndEnqueue, std::ref(pool), taskNum, std::ref(metaclient), std::ref(inIO), std::ref(reader));
     std::thread checkResultsThread(checkResults, std::ref(pool), std::ref(metaclient));
 
     checkMetaThread.join();
-
     checkResultsThread.join();
 
     //not sure why there is bug when add this
     //reader.EndStep();
     //reader.Close();
 
-    //send request to timer that wf end
+    //tick finish
     string reply = metaclient.Recordtimetick("WFTIMER");
-    std::cout << "Timer received: " << reply << std::endl;
 
     return 0;
 }

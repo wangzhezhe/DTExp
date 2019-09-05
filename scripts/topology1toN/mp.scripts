@@ -1,0 +1,28 @@
+#!/bin/sh
+#SBATCH -N 1
+#SBATCH -p main
+#SBATCH -t 00:05:00
+
+# init
+source /home/zw241/cworkspace/src/DTExp/scripts/basic/init.sh
+
+# start original gray-scott
+mpirun -n 1 ./gray-scott settings.json &>./gray-scott.log &
+
+while [ ! -d ./gs.bp ]
+do
+    sleep 0.01
+    echo "gs.bp dir not exist"
+done
+
+# start checking data
+TASKNUM=64
+
+  ./anapullmeta 1 $TASKNUM &>anapullmeta.log &
+
+
+# 2 4 8 16 32 64
+# run pdfpushmeta
+./pdfpushmeta gs.bp $TASKNUM &>pdfpushmeta.log &
+
+wait

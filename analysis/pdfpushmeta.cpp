@@ -1,7 +1,6 @@
 
 
 #include <putgetMeta/metaclient.h>
-#include <putgetMeta/metaclient.h>
 #include <utils/ThreadPool.h>
 #include <unistd.h>
 #include <queue>
@@ -109,21 +108,23 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &comm_size);
 
-    if (argc != 2)
+    if (argc != 3)
     {
-        std::cout << " <infileName>\n";
+        std::cout << " <infileName> <taskNum>\n";
         MPI_Finalize();
         return 0;
     }
 
     //init the metaclient
     MetaClient metaclient = getMetaClient();
-    std::string keyDataOk = "INDICATOR1";
+    std::string keyDataOkBase = "INDICATOR";
     std::string keySimFinish = "SIMFINISH";
 
     std::string in_filename;
     size_t nbins = 100;
     in_filename = argv[1];
+    int taskNum = std::stoi(argv[2]);
+    std::cout << "get task numner: " << taskNum << std::endl;
 
     //get grid size from setting
     Settings settings = Settings::from_json("settings.json");
@@ -268,18 +269,24 @@ int main(int argc, char *argv[])
         //start analytics if the checking indicator is ok
         //this value shoule be decided based on the output of the compute pdf in real case
         bool indicator = false;
-        if (simStep % 2 == 0)
+        //if (simStep % 2 == 0)
+        if (simStep == 1)
         {
             indicator = true;
         }
-
+        
+        std::cout << "current simStep "<<simStep << "taskNum " << taskNum << " indicator " << indicator << std::endl;
         if (indicator)
         {
             //set the metadata to the metadata server
             //assume the consumer know how to generate the variable
-            std::string metainfo = std::to_string(simStep-1);
-            std::string reply = metaclient.Putmeta(keyDataOk, metainfo);
-            std::cout << "Put metainfo recieve: " << reply << " for ts " << simStep << std::endl;
+            for (int i = 0; i < taskNum; i++)
+            {
+                std::string metainfo = std::to_string(simStep - 1);
+                std::string keyDataOk = keyDataOkBase + std::to_string(i);
+                std::string reply = metaclient.Putmeta(keyDataOk, metainfo);
+                std::cout << "Put metainfo for " << keyDataOk << " recieve: " << reply << " for ts " << simStep << std::endl;
+            }
         }
 
         ++stepAnalysis;

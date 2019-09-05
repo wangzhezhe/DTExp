@@ -43,9 +43,7 @@ if (VTK)
 
   if(VTK_FOUND)
 
-    add_executable(pdfwithana analysis/pdfwithana.cpp simulation/settings.cpp)
-    target_link_libraries(pdfwithana adios2::adios2 ${VTK_LIBRARIES}
-      MPI::MPI_C)
+
 
   endif(VTK_FOUND)
 
@@ -217,5 +215,25 @@ target_link_libraries(isosurface adios2::adios2 ${VTK_LIBRARIES} MPI::MPI_C gRPC
 target_include_directories(isosurface PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
+
+
+add_executable(pdfwithana 
+analysis/pdfwithana.cpp 
+simulation/settings.cpp 
+putgetMeta/metaclient.cpp 
+utils/ipTool.cpp
+${PROTO_SRCS} 
+${GRPC_SRCS})
+target_link_libraries(pdfwithana 
+adios2::adios2 
+${VTK_LIBRARIES}
+MPI::MPI_C
+gRPC::grpc++_reflection 
+protobuf::libprotobuf
+)
+target_include_directories(pdfwithana PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+
 
 endif(VTK)

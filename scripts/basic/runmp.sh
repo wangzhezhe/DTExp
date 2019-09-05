@@ -13,7 +13,7 @@ rm -rf Metaserver
 
 # run metaserer
 
-./metaserver & 
+./metaserver &> metaserver.log &
 
 
 while [ ! -d ./Metaserver ]
@@ -25,31 +25,28 @@ done
 echo "---ok to start metaserver"
 
 
-# run sim
-mpirun -n 1 ./gray-scott ./settings.json &> sim.log &
+# start original gray-scott
+mpirun -n 1 ./gray-scott settings.json &>./gray-scott.log &
 
-echo "ok to start sim"
-
-# check bp file
-# use BP4, there is only dir
 while [ ! -d ./gs.bp ]
 do
     sleep 0.01
-    echo "dir not exist"
+    echo "gs.bp dir not exist"
 done
 
+# start checking data
+TASKNUM=32
+#x=0
+#while [ $x -lt $TASKNUM ]
+#do
+#  echo $x
+  ./anapullmeta 1 $TASKNUM &>anapullmeta.log &
+#  x=$(( $x + 1 ))
+#done
 
-if [ ! -d ./vtkdata ]; then
-  mkdir ./vtkdata;
-fi
-
-./anapullmeta 4 &> anapullmeta.log & 
-#echo "ok to start anapullmeta"
-
+# 2 4 8 16 32 64
 # run pdfpushmeta
-./pdfpushmeta gs.bp &>pdfpushmeta.log &
-
-echo "ok to start pdfpushmeta"
+./pdfpushmeta gs.bp $TASKNUM &>pdfpushmeta.log &
 
 
 

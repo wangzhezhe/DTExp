@@ -29,6 +29,7 @@
 #include <vtkPolyData.h>
 #include <vtkSmartPointer.h>
 #include <vtkXMLPolyDataWriter.h>
+#include <putgetMeta/metaclient.h>
 
 bool epsilon(double d) { return (d < 1.0e-20); }
 bool epsilon(float d) { return (d < 1.0e-20); }
@@ -338,7 +339,8 @@ int main(int argc, char *argv[])
         //start analytics if the checking indicator is ok
         //this value shoule be decided based on the output of the compute pdf in real case
         bool indicator = false;
-        if (simStep % 2 == 0)
+        //if (simStep % 2 == 0)
+        if(simStep==1)
         {
             indicator = true;
         }
@@ -362,7 +364,8 @@ int main(int argc, char *argv[])
             std::cout << "ok for ts " << simStep << std::endl;
 
             //sleep adjusted time
-            sleep(1);
+            usleep(1000 * 5 * grid_size);
+            std::cout << "adjusted time" << 1000 * 5 * grid_size << std::endl;
         }
 
         ++stepAnalysis;
@@ -371,5 +374,10 @@ int main(int argc, char *argv[])
     // cleanup
     reader.Close();
     MPI_Finalize();
+
+    //tick finish
+    MetaClient metaclient = getMetaClient();
+    string reply = metaclient.Recordtimetick("WFTIMER");
+
     return 0;
 }
