@@ -26,7 +26,7 @@ fi
 rm -rf Metaserver
 cp /home/zw241/cworkspace/build/build_MMServer/metaserver .
 sleep 1
-./metaserver &> metaserver.log &
+./metaserver eno1 &> metaserver.log &
 
 # check dir
 while [ ! -d ./Metaserver ]
@@ -35,5 +35,5 @@ do
     echo "Metaserver dir not exist"
 done
 
-cp /home/zw241/cworkspace/build/build_ewfs/workflowserver .
 rm -rf multinodeip
+cp /home/zw241/cworkspace/build/build_ewfs/workflowserver .

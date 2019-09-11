@@ -1,38 +1,27 @@
 #!/bin/sh
-#SBATCH -N 1
+#SBATCH -N 8
 #SBATCH -p main
+#SBATCH --ntasks-per-node=1
 #SBATCH -t 00:05:00
 
-# scratch dir
-module load openmpi/2.1.1
+# init
 
-PJPATH_SCRATCH=/scratch/zw241/cworkspace/build/build_DTExp
-PJPATH_HOME=/home/zw241/cworkspace/src/DTExp
+source /home/zw241/cworkspace/src/DTExp/scripts/basic/init.sh
 
+echo "core numbers:"
+cat /proc/cpuinfo |grep processor
 
-cd $PJPATH_SCRATCH
-cp $PJPATH_HOME/adios2.xml .
-cp $PJPATH_HOME/simulation/settings.json .
-
-# clean the previous adios file
-rm *.log
-rm -rf gs.bp*
-rm -rf pdf.bp*
-rm -rf iso.bp*
-
-sleep 1
-
-mpirun -n 1 ./gray-scott ./settings.json &
+srun --mpi=pmi2 --mem-per-cpu=1000 -n 4 ./gray-scott ./settings.json 
 
 # the pdf
 # use BP4, there is only dir
 while [ ! -d ./gs.bp ]
 do
     sleep 0.01
-    echo "dir not exist"
+    #echo "dir not exist"
 done
 
-mpirun -n 1 ./pdf_calc gs.bp pdf.bp 100 &
+srun --mpi=pmi2 --mem-per-cpu=1000 -n 1 ./pdf_calc gs.bp pdf.bp 100 &> pdf_calc.log 
 
 
 if [ ! -d ./vtkdata ]; then
@@ -41,11 +30,9 @@ fi
 
 
 # the iso surface
-mpirun -n 1 ./isosurface gs.bp iso.bp 0.5 
+srun --mpi=pmi2 --mem-per-cpu=1000 -n 4 ./isosurface gs.bp iso.bp 0.5 &> isosurface.log
 
 #it is dangerous to run in parallel, since the adios is not thread theafty
-
-sleep 5
 
 #cat gray_scott_pe_0.log |grep -v total |cut -d$'\t' -f 3 |python3 py_statistic.py
 #cat isosurface_pe_0.log | grep -v total |cut -d$'\t' -f 4 | python3 py_statistic.py

@@ -17,10 +17,12 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
-#include <putgetMeta/metaclient.h>
 
 bool epsilon(double d) { return (d < 1.0e-20); }
 bool epsilon(float d) { return (d < 1.0e-20); }
+
+// MPI info
+int rank, procs, wrank;
 
 adios2::Variable<double> var_u_pdf, var_v_pdf;
 adios2::Variable<double> var_u_bins, var_v_bins;
@@ -100,17 +102,20 @@ void compute_pdf(const std::vector<T> &data,
     return;
 }
 
-bool DoCheck(int rank, int procs, unsigned int step, GrayScott &sim)
+void DoCheck(adios2::IO &pdfwriter_io, adios2::Engine &pdfwriter, int rank, unsigned int step, bool iffirstStep, GrayScott &sim)
 {
     unsigned int stepAnalysis = step;
     unsigned int simStep = stepAnalysis;
 
     std::vector<double> pdf_u;
+    std::vector<double> pdf_v;
     std::vector<double> bins_u;
+    std::vector<double> bins_v;
 
     size_t nbins = 100;
 
     std::vector<double> u = sim.u_noghost();
+    std::vector<double> v = sim.v_noghost();
 
     std::vector<std::size_t> shape(3, 0);
     shape[0] = sim.size_x;
@@ -129,6 +134,8 @@ bool DoCheck(int rank, int procs, unsigned int step, GrayScott &sim)
 
     auto mmu = std::minmax_element(u.begin(), u.end());
     std::pair<double, double> minmax_u = std::make_pair(*mmu.first, *mmu.second);
+    auto mmv = std::minmax_element(v.begin(), v.end());
+    std::pair<double, double> minmax_v = std::make_pair(*mmv.first, *mmv.second);
 
     int comm_size = procs;
     size_t count1 = shape[0] / comm_size;
@@ -138,20 +145,42 @@ bool DoCheck(int rank, int procs, unsigned int step, GrayScott &sim)
     compute_pdf(u, shape, start1, count1, nbins, minmax_u.first,
                 minmax_u.second, pdf_u, bins_u);
 
-    //in real case, this results should be aggregated from different rank, than start checking at one place
-    //if (step >= 0)
-    //if (step % 2 == 0)
-    //if (step == 1)
-    //if (step % 2 == 0)
-    //if (simStep == 1 || simStep == 10)
-    if (step >= 0)
+    compute_pdf(v, shape, start1, count1, nbins, minmax_v.first,
+                minmax_v.second, pdf_v, bins_v);
+
+    // write U, V, and their norms out
+    if (iffirstStep)
     {
-        return true;
+        var_u_pdf = pdfwriter_io.DefineVariable<double>(
+            "U/pdf", {shape[0], nbins}, {start1, 0}, {count1, nbins});
+        var_v_pdf = pdfwriter_io.DefineVariable<double>(
+            "V/pdf", {shape[0], nbins}, {start1, 0}, {count1, nbins});
+
+        var_u_bins = pdfwriter_io.DefineVariable<double>("U/bins", {nbins},
+                                                         {0}, {nbins});
+        var_v_bins = pdfwriter_io.DefineVariable<double>("V/bins", {nbins},
+                                                         {0}, {nbins});
+        var_step_out = pdfwriter_io.DefineVariable<int>("step");
     }
-    else
-    {
-        return false;
-    }
+
+    pdfwriter.BeginStep();
+    //check data
+    std::cout << "u size " << pdf_u.size() << std::endl;
+    pdfwriter.Put<double>(var_u_pdf, pdf_u.data());
+    pdfwriter.Put<double>(var_v_pdf, pdf_v.data());
+
+    pdfwriter.Put<double>(var_u_bins, bins_u.data());
+    pdfwriter.Put<double>(var_v_bins, bins_v.data());
+    pdfwriter.Put<int>(var_step_out, simStep);
+
+    //if (write_inputvars)
+    //{
+    //    writer.Put<double>(var_u_out, u.data());
+    //    writer.Put<double>(var_v_out, v.data());
+    //}
+    pdfwriter.EndStep();
+
+    return;
 }
 
 void print_io_settings(const adios2::IO &io)
@@ -186,9 +215,7 @@ void print_simulator_settings(const GrayScott &s)
 
 int main(int argc, char **argv)
 {
-
     MPI_Init(&argc, &argv);
-    int rank, procs, wrank;
 
     MPI_Comm_rank(MPI_COMM_WORLD, &wrank);
 
@@ -209,14 +236,6 @@ int main(int argc, char **argv)
         MPI_Abort(MPI_COMM_WORLD, -1);
     }
 
-    if (rank == 0)
-    {
-        //send request to timer that wf start
-        MetaClient metaclient = getMetaClient();
-        string reply = metaclient.Recordtimestart("WFTIMER");
-        std::cout << "Timer received: " << reply << std::endl;
-    }
-
     Settings settings = Settings::from_json(argv[1]);
 
     GrayScott sim(settings, comm);
@@ -224,11 +243,17 @@ int main(int argc, char **argv)
 
     adios2::ADIOS adios(settings.adios_config, comm, adios2::DebugON);
 
-    adios2::IO io_main = adios.DeclareIO("SimulationOutput");
+    adios2::IO io_ckpt = adios.DeclareIO("SimulationCheckpoint");
 
-    Writer writer_main(settings, sim, io_main);
+    //the wrapper for the writer enginge
+    Writer writer_ckpt(settings, sim, io_ckpt);
 
-    writer_main.open(settings.output);
+    adios2::IO pdfwriter_io = adios.DeclareIO("PDFAnalysisOutput");
+
+    std::string out_filename = "sim-pdf.bp";
+
+    adios2::Engine pdfwriter =
+        pdfwriter_io.Open(out_filename, adios2::Mode::Write, comm);
 
     if (rank == 0)
     {
@@ -237,10 +262,31 @@ int main(int argc, char **argv)
         std::cout << "========================================" << std::endl;
 
         std::cout << "PDF analysis reads from Simulation use function call:  " << std::endl;
+        std::cout << "PDF analysis writes using engine type:                 "
+                  << pdfwriter_io.EngineType() << std::endl;
     }
+
+#ifdef ENABLE_TIMERS
+    Timer timer_total;
+    Timer timer_compute;
+    Timer timer_write;
+
+    std::ostringstream log_fname;
+    log_fname << "gray_scott_pe_" << rank << ".log";
+
+    std::ofstream log(log_fname.str());
+    log << "step\ttotal_gs\tcompute_gs\twrite_gs" << std::endl;
+#endif
+
+    bool iffirstStep = true;
 
     for (int i = 0; i < settings.steps;)
     {
+#ifdef ENABLE_TIMERS
+        MPI_Barrier(comm);
+        timer_total.start();
+        timer_compute.start();
+#endif
 
         for (int j = 0; j < settings.plotgap; j++)
         {
@@ -248,34 +294,60 @@ int main(int argc, char **argv)
             i++;
         }
 
-        if (i == settings.plotgap)
-        {
-            std::cout << "engine type for sim output is " << io_main.EngineType() << std::endl;
-        }
-
-        bool indicator = DoCheck(rank, procs, i, sim);
-        std::cout << "indicator is " << indicator << " for do check at ts: " << i << std::endl;
+#ifdef ENABLE_TIMERS
+        double time_compute = timer_compute.stop();
+        MPI_Barrier(comm);
+        timer_write.start();
+#endif
 
         if (rank == 0)
         {
             std::cout << "Simulation at step " << i
-                      << " check and output step     " << i / settings.plotgap
+                      << " writing output step     " << i / settings.plotgap
                       << std::endl;
         }
 
-        if (indicator)
+        if (settings.checkpoint &&
+            i % (settings.plotgap * settings.checkpoint_freq) == 0)
         {
-            writer_main.write(i, sim);
+            writer_ckpt.open(settings.checkpoint_output);
+            writer_ckpt.write(i, sim);
+            writer_ckpt.close();
         }
+
+#ifdef ENABLE_TIMERS
+        double time_write = timer_write.stop();
+        double time_step = timer_total.stop();
+        MPI_Barrier(comm);
+
+        log << i << "\t" << time_step << "\t" << time_compute << "\t"
+            << time_write << std::endl;
+#endif
+
+        //if the inline engine is used, read data and generate the vtkm data here
+        //the adis needed to be installed before using
+
+        if (i == settings.plotgap)
+        {
+            std::cout << "---using the inline engine, caculate the pdf---" << std::endl;
+        }
+        else
+        {
+            iffirstStep = false;
+        }
+
+        DoCheck(pdfwriter_io, pdfwriter, rank, i, iffirstStep, sim);
+        std::cout << "ok for do check at ts: " << i << std::endl;
     }
 
-    writer_main.close();
+    pdfwriter.Close();
 
-    if (rank == 0)
-    {
-        MetaClient metaclient = getMetaClient();
-        string reply = metaclient.Recordtimetick("WFTIMER");
-        std::cout << "Timer received for simwithpdf finish: " << reply << std::endl;
-    }
+#ifdef ENABLE_TIMERS
+    log << "total\t" << timer_total.elapsed() << "\t" << timer_compute.elapsed()
+        << "\t" << timer_write.elapsed() << std::endl;
+
+    log.close();
+#endif
+
     MPI_Finalize();
 }

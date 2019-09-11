@@ -43,12 +43,6 @@ void print_simulator_settings(const GrayScott &s)
 
 int main(int argc, char **argv)
 {
-    //send request to timer that wf start
-    MetaClient metaclient = getMetaClient();
-    string reply = metaclient.Recordtimestart("WFTIMER");
-    std::cout << "Timer received: " << reply << std::endl;
-
-
 
     MPI_Init(&argc, &argv);
     int rank, procs, wrank;
@@ -62,12 +56,23 @@ int main(int argc, char **argv)
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &procs);
 
-    if (argc < 2) {
-        if (rank == 0) {
+    if (argc < 2)
+    {
+        if (rank == 0)
+        {
             std::cerr << "Too few arguments" << std::endl;
             std::cerr << "Usage: gray-scott settings.json" << std::endl;
         }
         MPI_Abort(MPI_COMM_WORLD, -1);
+    }
+
+    //send request to timer that wf start
+    MetaClient metaclient = getMetaClient();
+
+    if (rank == 0)
+    {
+        string reply = metaclient.Recordtimestart("WFTIMER");
+        std::cout << "Timer received: " << reply << std::endl;
     }
 
     Settings settings = Settings::from_json(argv[1]);
@@ -77,18 +82,16 @@ int main(int argc, char **argv)
 
     adios2::ADIOS adios(settings.adios_config, comm, adios2::DebugON);
 
-
     adios2::IO io_main = adios.DeclareIO("SimulationOutput");
     adios2::IO io_ckpt = adios.DeclareIO("SimulationCheckpoint");
-
-
 
     Writer writer_main(settings, sim, io_main);
     Writer writer_ckpt(settings, sim, io_ckpt);
 
     writer_main.open(settings.output);
 
-    if (rank == 0) {
+    if (rank == 0)
+    {
         print_io_settings(io_main);
         std::cout << "========================================" << std::endl;
         print_settings(settings);
@@ -108,15 +111,16 @@ int main(int argc, char **argv)
     log << "step\ttotal_gs\tcompute_gs\twrite_gs" << std::endl;
 #endif
 
-
-    for (int i = 0; i < settings.steps;) {
+    for (int i = 0; i < settings.steps;)
+    {
 #ifdef ENABLE_TIMERS
         MPI_Barrier(comm);
         timer_total.start();
         timer_compute.start();
 #endif
 
-        for (int j = 0; j < settings.plotgap; j++) {
+        for (int j = 0; j < settings.plotgap; j++)
+        {
             sim.iterate();
             i++;
         }
@@ -127,7 +131,8 @@ int main(int argc, char **argv)
         timer_write.start();
 #endif
 
-        if (rank == 0) {
+        if (rank == 0)
+        {
             std::cout << "Simulation at step " << i
                       << " writing output step     " << i / settings.plotgap
                       << std::endl;
@@ -136,7 +141,8 @@ int main(int argc, char **argv)
         writer_main.write(i, sim);
 
         if (settings.checkpoint &&
-            i % (settings.plotgap * settings.checkpoint_freq) == 0) {
+            i % (settings.plotgap * settings.checkpoint_freq) == 0)
+        {
             writer_ckpt.open(settings.checkpoint_output);
             writer_ckpt.write(i, sim);
             writer_ckpt.close();
@@ -154,11 +160,11 @@ int main(int argc, char **argv)
         //if the inline engine is used, read data and generate the vtkm data here
         //the adis needed to be installed before using
 
-
-
-        if (io_main.EngineType() == "Inline") {
-          if (i == settings.plotgap) {
-            std::cout << "---using the inline engine" << std::endl;
+        if (io_main.EngineType() == "Inline")
+        {
+            if (i == settings.plotgap)
+            {
+                std::cout << "---using the inline engine" << std::endl;
             }
         }
     }
@@ -172,7 +178,11 @@ int main(int argc, char **argv)
     log.close();
 #endif
 
-    MPI_Finalize();
+    if (rank == 0)
+    {
+        std::string reply = metaclient.Recordtimetick("WFTIMER");
+        std::cout << "Timer received for sim finish: " << reply << std::endl;
+    }
 
-    metaclient.Recordtimetick("WFTIMER");
+    MPI_Finalize();
 }

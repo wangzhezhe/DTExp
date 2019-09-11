@@ -18,13 +18,17 @@ std::string keyDataOk = "INDICATOR1";
 std::string keySimFinish = "SIMFINISH";
 std::queue<std::future<void>> results;
 
-size_t npx;
-size_t npy;
-size_t npz;
+typedef struct partitionInfo
+{
+    size_t npx;
+    size_t npy;
+    size_t npz;
 
-size_t px;
-size_t py;
-size_t pz;
+    size_t px;
+    size_t py;
+    size_t pz;
+
+} partitionInfo;
 
 void write_vtk(const std::string &fname,
                const vtkSmartPointer<vtkPolyData> polyData)
@@ -63,7 +67,7 @@ compute_isosurface(const adios2::Variable<double> &varField,
     return mcubes->GetOutput();
 }
 
-void pullandStartAna(int ts, adios2::IO inIO, adios2::Engine reader)
+void pullandStartAna(int ts, int rank, partitionInfo &pinfo, adios2::IO inIO, adios2::Engine reader)
 {
 
     //todo use the setselection to get the meta and start the analytics
@@ -74,10 +78,17 @@ void pullandStartAna(int ts, adios2::IO inIO, adios2::Engine reader)
 
     std::vector<double> u;
 
-
     adios2::Variable<double> varU = inIO.InquireVariable<double>("U");
 
     adios2::Dims shape = varU.Shape();
+
+    size_t npx = pinfo.npx;
+    size_t npy = pinfo.npy;
+    size_t npz = pinfo.npz;
+
+    size_t px = pinfo.px;
+    size_t py = pinfo.py;
+    size_t pz = pinfo.pz;
 
     size_t size_x = (shape[0] + npx - 1) / npx;
     size_t size_y = (shape[1] + npy - 1) / npy;
@@ -99,94 +110,43 @@ void pullandStartAna(int ts, adios2::IO inIO, adios2::Engine reader)
     {
         size_z -= size_z * npz - shape[2];
     }
-    /*
+
     varU.SetSelection({{offset_x, offset_y, offset_z},
                        {size_x + (px != npx - 1 ? 1 : 0),
                         size_y + (py != npy - 1 ? 1 : 0),
                         size_z + (pz != npz - 1 ? 1 : 0)}});
-*/
-    varU.SetStepSelection({ts, 1});
 
+    varU.SetStepSelection({ts, 1});
 
     reader.Get<double>(varU, u, adios2::Mode::Sync);
 
     int isovalue = 0.5;
 
-
     auto polyData = compute_isosurface(varU, u, isovalue);
 
     //write_adios(writer, polyData, varPoint, varCell, varNormal, varOutStep,
     //            step, comm);
+    //replase by sleep for experiment to avoid the impact of IO
+    Settings settings = Settings::from_json("./settings.json");
+    std::this_thread::sleep_for(std::chrono::milliseconds(5 * settings.L));
+
+    /*
     std::string dir = "./vtkdata";
 
     char countstr[50];
-    sprintf(countstr, "%04d", ts);
+    sprintf(countstr, "%02d_%04d", rank, ts);
 
     std::string fname = dir + "/vtkiso_" + std::string(countstr) + ".vtk";
     //the format here is the vtk
     write_vtk(fname, polyData);
+    */
     std::cout << "pullandStartAna,ok for ts: " << ts << std::endl;
 
     //sleep adjusted time
+    /*
     Settings settings = Settings::from_json("./settings.json");
-    usleep(1000*5*settings.L);
-    return;
-}
-
-void checkResults(ThreadPool &pool, MetaClient &metaclient)
-{
-
-    while (true)
-    {
-        if (pool.getTaskSize() > 0)
-        {
-            results.front().get();
-            results.pop();
-        }
-        else
-        {
-            break;
-        }
-    }
-}
-
-void checkMetaAndEnqueue(ThreadPool &pool, MetaClient &metaclient, const adios2::IO &inIO, adios2::Engine &reader)
-{
-    //check the meta when there is info, then trigure specific tasks
-    while (true)
-    {
-        //check finish is empty
-        //return
-
-        std::string simFinishReply = metaclient.Getmetaspace(keySimFinish);
-        if (simFinishReply.compare("OK") == 0 && pool.getTaskSize() == 0)
-        {
-
-            std::cout << "simulation finish and all tasks finish" << std::endl;
-            break;
-        }
-        else
-        {
-
-            //check the ts
-            std::string indicatorReply = metaclient.Getmeta(keyDataOk);
-
-            if (indicatorReply.compare("NULL") != 0)
-            {
-                std::cout << "process data with ts: " << indicatorReply << std::endl;
-                int ts = std::stoi(indicatorReply);
-
-                results.push(
-                    pool.enqueue([ts, inIO, reader] {
-                        return pullandStartAna(ts, inIO, reader);
-                    }));
-            }
-            else
-            {
-                sleep(0.05);
-            }
-        }
-    }
+    usleep(1000 * 5 * settings.L);
+    */
     return;
 }
 
@@ -206,22 +166,23 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &procs);
 
-    std::cout << "ana info: rank " << rank << "proces " << procs << std::endl;
+    std::cout << "ana info: rank " << rank << " proces " << procs << std::endl;
 
     int dims[3] = {0};
     MPI_Dims_create(procs, 3, dims);
-    npx = dims[0];
-    npy = dims[1];
-    npz = dims[2];
+    partitionInfo pinfo;
+    pinfo.npx = dims[0];
+    pinfo.npy = dims[1];
+    pinfo.npz = dims[2];
 
     int coords[3] = {0};
     int periods[3] = {0};
     MPI_Comm cart_comm;
     MPI_Cart_create(comm, 3, dims, periods, 0, &cart_comm);
     MPI_Cart_coords(cart_comm, rank, 3, coords);
-    px = coords[0];
-    py = coords[1];
-    pz = coords[2];
+    pinfo.px = coords[0];
+    pinfo.py = coords[1];
+    pinfo.pz = coords[2];
 
     if (argc != 2)
     {
@@ -239,15 +200,19 @@ int main(int argc, char *argv[])
     adios2::Engine reader = inIO.Open(input_fname, adios2::Mode::Read);
 
     reader.BeginStep();
-
-    pullandStartAna(ts, inIO, reader);
-
+    pullandStartAna(ts, rank, pinfo, inIO, reader);
     reader.EndStep();
     reader.Close();
-    MPI_Finalize();
 
     //tick finish
-    MetaClient metaclient = getMetaClient();
-    string reply = metaclient.Recordtimetick("WFTIMER");
+    if (rank == 0)
+    {
+        MetaClient metaclient = getMetaClient();
+        string reply = metaclient.Recordtimetick("WFTIMER");
+        std::cout << "Timer received for anastartbyevent finish: " << reply << std::endl;
+    }
+
+    MPI_Finalize();
+
     return 0;
 }

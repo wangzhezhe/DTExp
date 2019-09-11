@@ -267,25 +267,33 @@ int main(int argc, char *argv[])
                     minmax_u.second, pdf_u, bins_u);
 
         //start analytics if the checking indicator is ok
+        //in real case, this results should be aggregated from different rank, than start checking at one place
         //this value shoule be decided based on the output of the compute pdf in real case
         bool indicator = false;
         //if (simStep % 2 == 0)
-        if (simStep == 1)
+        //if (simStep == 1)
+        //if (simStep >= 0)
+        //if (simStep % 2 == 0)
+        //if (simStep == 1 || simStep == 10)
+        if (simStep >= 0)
         {
             indicator = true;
         }
-        
-        std::cout << "current simStep "<<simStep << "taskNum " << taskNum << " indicator " << indicator << std::endl;
+
+        std::cout << "current simStep " << simStep << "taskNum " << taskNum << " indicator " << indicator << std::endl;
         if (indicator)
         {
             //set the metadata to the metadata server
             //assume the consumer know how to generate the variable
-            for (int i = 0; i < taskNum; i++)
+            if (rank == 0)
             {
-                std::string metainfo = std::to_string(simStep - 1);
-                std::string keyDataOk = keyDataOkBase + std::to_string(i);
-                std::string reply = metaclient.Putmeta(keyDataOk, metainfo);
-                std::cout << "Put metainfo for " << keyDataOk << " recieve: " << reply << " for ts " << simStep << std::endl;
+                for (int i = 0; i < taskNum; i++)
+                {
+                    std::string metainfo = std::to_string(simStep - 1);
+                    std::string keyDataOk = keyDataOkBase + std::to_string(i);
+                    std::string reply = metaclient.Putmeta(keyDataOk, metainfo);
+                    std::cout << "Put metainfo for " << keyDataOk << " recieve: " << reply << " for ts " << simStep << std::endl;
+                }
             }
         }
 
@@ -294,11 +302,13 @@ int main(int argc, char *argv[])
 
     // cleanup
     reader.Close();
+    if (rank == 0)
+    {
+        //program finish, putmeta
+        std::string reply = metaclient.Putmetaspace(keySimFinish, "OK");
+        std::cout << "Program finish request recieve: " << reply << std::endl;
+    }
     MPI_Finalize();
-
-    //program finish, putmeta
-    std::string reply = metaclient.Putmetaspace(keySimFinish, "OK");
-    std::cout << "Program finish request recieve: " << reply << std::endl;
 
     return 0;
 }

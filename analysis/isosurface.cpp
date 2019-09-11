@@ -186,6 +186,7 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &procs);
 
+
     int dims[3] = {0};
     MPI_Dims_create(procs, 3, dims);
     size_t npx = dims[0];
@@ -201,6 +202,7 @@ int main(int argc, char *argv[])
     size_t py = coords[1];
     size_t pz = coords[2];
 
+
     if (argc < 4)
     {
         if (rank == 0)
@@ -211,25 +213,19 @@ int main(int argc, char *argv[])
         MPI_Abort(MPI_COMM_WORLD, -1);
     }
 
+
     const std::string input_fname(argv[1]);
     const std::string output_fname(argv[2]);
     const double isovalue = std::stod(argv[3]);
 
+
     adios2::ADIOS adios("adios2.xml", comm, adios2::DebugON);
 
     adios2::IO inIO = adios.DeclareIO("SimulationOutput");
+    
     adios2::Engine reader = inIO.Open(input_fname, adios2::Mode::Read);
-
-    adios2::IO outIO = adios.DeclareIO("IsosurfaceOutput");
-    adios2::Engine writer = outIO.Open(output_fname, adios2::Mode::Write);
-
-    auto varPoint =
-        outIO.DefineVariable<double>("point", {1, 3}, {0, 0}, {1, 3});
-    auto varCell = outIO.DefineVariable<int>("cell", {1, 3}, {0, 0}, {1, 3});
-    auto varNormal =
-        outIO.DefineVariable<double>("normal", {1, 3}, {0, 0}, {1, 3});
-    auto varOutStep = outIO.DefineVariable<int>("step");
-
+    
+    
     std::vector<double> u;
     int step;
 
@@ -243,32 +239,44 @@ int main(int argc, char *argv[])
     log_fname << "isosurface_pe_" << rank << ".log";
 
     std::ofstream log(log_fname.str());
-    log << "step\ttotal_iso\tread_iso\tcompute_write_iso" << std::endl;
+    //log << "step\ttotal_iso\tread_iso\tcompute_write_iso" << std::endl;
 #endif
+
+    if (rank == 0)
+    {
+        MetaClient metaclient = getMetaClient();
+        std::string reply = metaclient.Recordtimestart("PROCESS");
+        std::cout << "start PROCESS reply " << reply <<std::endl;
+    }
 
     while (true)
     {
 #ifdef ENABLE_TIMERS
+
         MPI_Barrier(comm);
         timer_total.start();
         timer_read.start();
 #endif
-
         adios2::StepStatus read_status = reader.BeginStep();
 
-        if(read_status == adios2::StepStatus::OtherError){
-            std::cout <<"---in iso surface adios status is unknown---"<< read_status << std::endl;
+        if (read_status == adios2::StepStatus::OtherError)
+        {
+            std::cout << "---in iso surface adios status is unknown---" << read_status << std::endl;
             break;
         }
-        if (read_status != adios2::StepStatus::OK) {
+
+        if (read_status != adios2::StepStatus::OK)
+        {
             // std::cout << "Stream not ready yet. Waiting...\n";
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            std::cout << "get status for iso "<< read_status <<std::endl;
-            if(read_status == adios2::StepStatus::EndOfStream){
+            std::cout << "get status for iso " << read_status << std::endl;
+            if (read_status == adios2::StepStatus::EndOfStream)
+            {
                 break;
             }
             continue;
-        } 
+        }
+
 
         adios2::Variable<double> varU = inIO.InquireVariable<double>("U");
         const adios2::Variable<int> varStep = inIO.InquireVariable<int>("step");
@@ -304,6 +312,12 @@ int main(int argc, char *argv[])
         reader.Get<double>(varU, u);
         reader.Get<int>(varStep, step);
         reader.EndStep();
+        if (rank==0){
+        MetaClient metaclient = getMetaClient();
+        std::string reply = metaclient.Recordtimetick("PROCESS");
+        std::cout << "ok for getting data " << step << " tick reply: " << reply << std::endl;
+        }
+
 
 #ifdef ENABLE_TIMERS
         double time_read = timer_read.stop();
@@ -316,6 +330,10 @@ int main(int argc, char *argv[])
 
         //write_adios(writer, polyData, varPoint, varCell, varNormal, varOutStep,
         //            step, comm);
+        //replase by sleep for experiment to avoid the impact of IO
+        Settings settings = Settings::from_json("./settings.json");
+        std::this_thread::sleep_for(std::chrono::milliseconds(5*settings.L));
+        /*
         std::string dir = "./vtkdata";
 
         char countstr[50];
@@ -324,42 +342,50 @@ int main(int argc, char *argv[])
         std::string fname = dir + "/vtkiso_" + std::string(countstr) + ".vtk";
         //the format here is the vtk
         write_vtk(fname, polyData);
+        */
         std::cout << "ok for ts " << step << std::endl;
 
 #ifdef ENABLE_TIMERS
         double time_compute = timer_compute.stop();
-        //MPI_Barrier(comm);
+        MPI_Barrier(comm);
         //timer_write.start();
 #endif
 
 #ifdef ENABLE_TIMERS
         //double time_write = timer_write.stop();
-        double time_step = timer_total.stop();
+        double time_total_t = timer_total.stop();
         MPI_Barrier(comm);
 
-        log << step << "\t" << time_step << "\t" << time_read << "\t"
-            << time_compute << std::endl;
+        std::cout << "timestep: " << step << " total: " << time_total_t << " "
+                  << " read: " << time_read << " "
+                  << "compute: " << time_compute << std::endl;
 #endif
     }
 
 #ifdef ENABLE_TIMERS
-    log << "total\t" << timer_total.elapsed() << "\t" << timer_read.elapsed()
-        << "\t" << timer_compute.elapsed() << std::endl;
+    //log << "total\t" << timer_total.elapsed() << "\t" << timer_read.elapsed()
+    //   << "\t" << timer_compute.elapsed() << std::endl;
 
     log.close();
 #endif
 
-    writer.Close();
     reader.Close();
+
+    if (rank == 0)
+    {
+        //add adjusted time
+        /*
+        Settings settings = Settings::from_json("./settings.json");
+        usleep(1000 * 5 * settings.L);
+        std::cout << "adjusted time: " << 1000 * 5 * settings.L << std::endl;
+        */
+        //tick finish
+        MetaClient metaclient = getMetaClient();
+        std::string reply = metaclient.Recordtimetick("WFTIMER");
+        std::cout << "tick reply: " << reply << std::endl;
+    }
 
     MPI_Finalize();
 
-    //add adjusted time 
-    Settings settings = Settings::from_json("./settings.json");
-    usleep(1000*5*settings.L);
-    std::cout<<"adjusted time"<<5*settings.L<<std::endl;
-
-    //tick finish
-    MetaClient metaclient = getMetaClient();
-    string reply = metaclient.Recordtimetick("WFTIMER");
+    return 0;
 }

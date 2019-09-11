@@ -239,16 +239,21 @@ int main(int argc, char *argv[])
 
 #ifdef ENABLE_TIMERS
     Timer timer_compute;
+    Timer timer_read;
 
     std::ostringstream log_fname;
     log_fname << "pdf_pe_" << rank << ".log";
 
     std::ofstream log(log_fname.str());
-    log << "step\tcompute_pdf" << std::endl;
+    log << "step\tread_pdf" << std::endl;
 #endif
 
     while (true)
     {
+#ifdef ENABLE_TIMERS
+        MPI_Barrier(comm);
+        timer_read.start();
+#endif
 
         // Begin step
         adios2::StepStatus read_status =
@@ -307,13 +312,17 @@ int main(int argc, char *argv[])
 
         // Read adios2 data
         reader.Get<double>(var_u_in, u);
-        if (shouldIWrite)
-        {
-            reader.Get<int>(var_step_in, &simStep);
-        }
+        reader.Get<int>(var_step_in, simStep);
 
         // End adios2 step
         reader.EndStep();
+#ifdef ENABLE_TIMERS
+        double timer_read_t = timer_read.stop();
+        log << simStep << "\t" << timer_read_t << std::endl;
+        MPI_Barrier(comm);
+#endif
+
+        std::cout << "read_time for " << simStep << " " << timer_read_t << std::endl;
 
         if (!rank)
         {
@@ -337,10 +346,15 @@ int main(int argc, char *argv[])
                     minmax_u.second, pdf_u, bins_u);
 
         //start analytics if the checking indicator is ok
+        //in real case, this results should be aggregated from different rank, than start checking at one place
         //this value shoule be decided based on the output of the compute pdf in real case
         bool indicator = false;
         //if (simStep % 2 == 0)
-        if(simStep==1)
+        //if (simStep == 1)
+        //if(simStep >= 0)
+        //if (simStep % 2 == 0)
+        //if (simStep == 1 || simStep == 10)
+        if(simStep >= 0)
         {
             indicator = true;
         }
@@ -353,6 +367,10 @@ int main(int argc, char *argv[])
 
             //write_adios(writer, polyData, varPoint, varCell, varNormal, varOutStep,
             //            step, comm);
+            //replase by sleep for experiment to avoid the impact of IO
+            Settings settings = Settings::from_json("./settings.json");
+            std::this_thread::sleep_for(std::chrono::milliseconds(5 * settings.L));
+            /*
             std::string dir = "./vtkdata";
 
             char countstr[50];
@@ -361,11 +379,14 @@ int main(int argc, char *argv[])
             std::string fname = dir + "/vtkiso_" + std::string(countstr) + ".vtk";
             //the format here is the vtk
             write_vtk(fname, polyData);
+            */
             std::cout << "ok for ts " << simStep << std::endl;
 
             //sleep adjusted time
+            /*
             usleep(1000 * 5 * grid_size);
-            std::cout << "adjusted time" << 1000 * 5 * grid_size << std::endl;
+            std::cout << "adjusted time " << 1000 * 5 * grid_size << std::endl;
+            */
         }
 
         ++stepAnalysis;
@@ -373,11 +394,13 @@ int main(int argc, char *argv[])
 
     // cleanup
     reader.Close();
+    if (rank == 0)
+    {
+        //tick finish
+        MetaClient metaclient = getMetaClient();
+        string reply = metaclient.Recordtimetick("WFTIMER");
+    }
     MPI_Finalize();
-
-    //tick finish
-    MetaClient metaclient = getMetaClient();
-    string reply = metaclient.Recordtimetick("WFTIMER");
 
     return 0;
 }

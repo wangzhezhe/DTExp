@@ -21,8 +21,6 @@
 #include "../common/timer.hpp"
 #include "../simulation/settings.h"
 
-
-
 bool epsilon(double d) { return (d < 1.0e-20); }
 bool epsilon(float d) { return (d < 1.0e-20); }
 
@@ -122,6 +120,7 @@ int main(int argc, char *argv[])
     MetaClient metaclient = getMetaClient();
     std::string keyDataOk = "INDICATOR1";
     std::string keySimFinish = "SIMFINISH";
+    EventClient eventclient = getEventClient();
 
     std::string in_filename;
     size_t nbins = 100;
@@ -268,26 +267,33 @@ int main(int argc, char *argv[])
                     minmax_u.second, pdf_u, bins_u);
 
         //start analytics if the checking indicator is ok
+        //in real case, this results should be aggregated from different rank, than start checking at one place
         //this value shoule be decided based on the output of the compute pdf in real case
         bool indicator = false;
+        //
+        //if (simStep  == 1)
+        //if(simStep>=0)
         //if (simStep % 2 == 0)
-        if (simStep  == 1)
+        //if (simStep >= 0)
+        //if (simStep == 1 || simStep == 10)
+        if (simStep >= 0)
         {
             indicator = true;
         }
-
-        if (indicator)
+        if (rank == 0)
         {
-            //set the metadata to the metadata server
-            //assume the consumer know how to generate the variable
-            std::string metainfots = std::to_string(simStep-1);
+            if (indicator)
+            {
+                //set the metadata to the metadata server
+                //assume the consumer know how to generate the variable
 
-            EventClient eventclient=getEventClient();
-            //vector<string> eventList, string source, string metadata, string matchType
-            std::vector<std::string> pushList;
-            pushList.push_back("INTERESTINGTOPIC1");
-            std::string reply = eventclient.Publish(pushList, "testid", metainfots, "NAME");
-            std::cout << "event publish recieve: " << reply << " for ts " << simStep << std::endl;
+                std::string metainfots = std::to_string(simStep - 1);
+                //vector<string> eventList, string source, string metadata, string matchType
+                std::vector<std::string> pushList;
+                pushList.push_back("INTERESTINGTOPIC1");
+                std::string reply = eventclient.Publish(pushList, "testid", metainfots, "NAME");
+                std::cout << "event publish recieve: " << reply << " for ts " << simStep << std::endl;
+            }
         }
 
         ++stepAnalysis;
@@ -295,11 +301,14 @@ int main(int argc, char *argv[])
 
     // cleanup
     reader.Close();
-    MPI_Finalize();
 
-    //program finish, putmeta
-    std::string reply = metaclient.Putmetaspace(keySimFinish, "OK");
-    std::cout << "Program finish request recieve: " << reply << std::endl;
+    if (rank == 0)
+    {
+        //program finish, putmeta
+        std::string reply = metaclient.Putmetaspace(keySimFinish, "OK");
+        std::cout << "Program finish request recieve: " << reply << std::endl;
+    }
+    MPI_Finalize();
 
     return 0;
 }

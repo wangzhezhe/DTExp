@@ -72,7 +72,7 @@ compute_isosurface(const adios2::Variable<double> &varField,
 void startLocalTask(int ts)
 {
     char command[200];
-    sprintf(command, "%s %d", "mpirun -n 1 ./anastartbyevent", ts);
+    sprintf(command, "%s %d", "srun --mpi=pmi2 --mem-per-cpu=1000 -n 4 ./anastartbyevent", ts);
     printf("execute command by local way:(%s)\n", command);
     //test using
     system(command);
@@ -125,6 +125,12 @@ void pullandStartAna(int ts, adios2::IO inIO, adios2::Engine reader)
 
     //write_adios(writer, polyData, varPoint, varCell, varNormal, varOutStep,
     //            step, comm);
+
+    //replase by sleep for experiment to avoid the impact of IO
+    Settings settings = Settings::from_json("./settings.json");
+    std::this_thread::sleep_for(std::chrono::milliseconds(5 * settings.L));
+
+    /*
     std::string dir = "./vtkdata";
 
     char countstr[50];
@@ -133,12 +139,15 @@ void pullandStartAna(int ts, adios2::IO inIO, adios2::Engine reader)
     std::string fname = dir + "/vtkiso_" + std::string(countstr) + ".vtk";
     //the format here is the vtk
     write_vtk(fname, polyData);
+    */
     std::cout << "pullandStartAna, ok for ts: " << ts << std::endl;
 
     //sleep adjusted time
+    /*
     Settings settings = Settings::from_json("./settings.json");
     usleep(1000 * 5 * settings.L);
     std::cout << "adjusted time " << 5 * settings.L << std::endl;
+    */
 
     taskNeedToFinishMutex.lock();
     taskNeedToFinish--;
@@ -192,7 +201,7 @@ void checkMetaAndEnqueue(ThreadPool &pool, int taskNum, MetaClient &metaclient, 
 
                 if (indicatorReply.compare("NULL") != 0)
                 {
-                    
+
                     std::cout << "process data with key " << keyDataOk << "for ts: " << indicatorReply << std::endl;
                     int ts = std::stoi(indicatorReply);
                     taskNeedToFinishMutex.lock();
@@ -294,21 +303,26 @@ int main(int argc, char *argv[])
 
     //init the thread pool
 
-    ThreadPool pool(poolSize);
-    MetaClient metaclient = getMetaClient();
+    if (rank == 0)
+    {
 
-    std::thread checkMetaThread(checkMetaAndEnqueue, std::ref(pool), taskNum, std::ref(metaclient), std::ref(inIO), std::ref(reader));
-    std::thread checkResultsThread(checkResults, std::ref(pool), std::ref(metaclient));
+        ThreadPool pool(poolSize);
+        MetaClient metaclient = getMetaClient();
 
-    checkMetaThread.join();
-    checkResultsThread.join();
+        std::thread checkMetaThread(checkMetaAndEnqueue, std::ref(pool), taskNum, std::ref(metaclient), std::ref(inIO), std::ref(reader));
+        std::thread checkResultsThread(checkResults, std::ref(pool), std::ref(metaclient));
 
-    //not sure why there is bug when add this
-    //reader.EndStep();
-    //reader.Close();
+        checkMetaThread.join();
+        checkResultsThread.join();
 
-    //tick finish
-    string reply = metaclient.Recordtimetick("WFTIMER");
+        //not sure why there is bug when add this
+        //reader.EndStep();
+        //reader.Close();
+
+        //tick finish
+        string reply = metaclient.Recordtimetick("WFTIMER");
+        std::cout << "anapullmeta finish reply: " << reply << std::endl;
+    }
 
     return 0;
 }

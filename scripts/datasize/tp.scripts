@@ -1,0 +1,22 @@
+#!/bin/sh
+#SBATCH -N 8
+#SBATCH -p main
+#SBATCH --ntasks-per-node=2
+#SBATCH -t 00:05:00
+
+# init
+source /home/zw241/cworkspace/src/DTExp/scripts/basic/init.sh
+
+# start original gray-scott
+srun --mpi=pmi2 --mem-per-cpu=1000 -n 4 ./simwithpdf settings.json &> simwithpdf.log &
+
+while [ ! -d ./gs.bp ]
+do
+    sleep 0.01
+done
+
+echo "start the isosurface"
+srun --mpi=pmi2 --mem-per-cpu=1000 -n 4 ./isosurface gs.bp iso.bp 0.5 &> isosurface.log &
+
+
+wait

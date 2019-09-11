@@ -9,6 +9,7 @@
 
     <io name="SimulationOutput">
         <engine type="BP4">
+            <parameter key="beginsteppollingfrequencysecs" value="10.0"/>
         </engine>
         <!--
         <variable name="U">

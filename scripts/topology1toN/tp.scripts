@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH -N 1
+#SBATCH -N 8
 #SBATCH -p main
 #SBATCH -t 00:05:00
 
@@ -7,7 +7,7 @@
 source /home/zw241/cworkspace/src/DTExp/scripts/basic/init.sh
 
 # start simwithpdf
-mpirun -n 1 ./simwithpdf settings.json &> simwithpdf.log &
+mpirun -oversubscribe -n 8 ./simwithpdf settings.json &> simwithpdf.log &
 
 while [ ! -d ./gs.bp ]
 do
@@ -17,13 +17,13 @@ done
 
 # start multiple tasks processing data
 # 4 8 16 32 64
-TASKNUM=2
+TASKNUM=64
 x=1
 while [ $x -le $TASKNUM ]
 do
-  ./isosurface gs.bp iso.bp 0.5
+  echo "trigguer id" $x
+  mpirun -oversubscribe -n 8 ./isosurface gs.bp iso.bp 0.5
   x=$(( $x + 1 ))
-  echo $x
 done
 
 wait

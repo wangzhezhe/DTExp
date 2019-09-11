@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH -N 1
+#SBATCH -N 8
 #SBATCH -p main
 #SBATCH -t 00:05:00
 
@@ -7,7 +7,7 @@
 source /home/zw241/cworkspace/src/DTExp/scripts/basic/init.sh
 
 # start original gray-scott
-mpirun -n 1 ./gray-scott settings.json &>./gray-scott.log &
+mpirun -oversubscribe -n 8 ./gray-scott settings.json &>./gray-scott.log &
 
 while [ ! -d ./gs.bp ]
 do
@@ -16,9 +16,9 @@ do
 done
 
 # start checking data
+# use thread pool here
 TASKNUM=64
-
-  ./anapullmeta 1 $TASKNUM &>anapullmeta.log &
+./anapullmeta 1 $TASKNUM &>anapullmeta.log &
 
 
 # 2 4 8 16 32 64

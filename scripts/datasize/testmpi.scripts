@@ -1,0 +1,19 @@
+#!/bin/sh
+#SBATCH --nodes=2  # total nodes
+#SBATCH --ntasks=8 # total tasks
+#SBATCH --ntasks-per-node=4 # the number of the tasks per nodes 
+#SBATCH --partition=main
+#SBATCH -t 00:05:00
+
+module load openmpi/2.1.1
+srun --mpi=pmix --mem-per-cpu=1000 -n 4 /bin/bash testdate1.sh &> date1.log &
+
+date; sleep 2
+
+echo "ok to execute date"
+
+echo "start second mpi job"
+srun --mpi=pmix --mem-per-cpu=1000 -n 4 /bin/bash testdate2.sh &> date2.log &
+
+echo "wait ..."
+wait
