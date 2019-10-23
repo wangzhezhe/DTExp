@@ -21,11 +21,8 @@ option(USE_TIMERS "Use profiling timers")
 # We are not using the C++ API of MPI, this will stop the compiler look for it
 add_definitions(-DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX)
 
-
 add_executable(pdf_calc analysis/pdf_calc.cpp)
 target_link_libraries(pdf_calc adios2::adios2 MPI::MPI_C)
-
-
 
 option(VTK "Build VTK apps")
 if (VTK_ROOT)

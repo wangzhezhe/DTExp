@@ -1,0 +1,30 @@
+#!/bin/sh
+#SBATCH -p main
+#SBATCH --constraint=hal,broadwell,edr
+#SBATCH -N 12
+#SBATCH --ntasks-per-node=24
+#SBATCH -t 00:06:00
+
+# init
+source /home/zw241/cworkspace/src/DTExp/scripts/basic/init.sh
+
+# start original gray-scott
+srun --mpi=pmi2 --mem-per-cpu=1000 --ntasks=$PARTITION ./gray-scott settings.json &>./gray-scott.log &
+
+while [ ! -d ./gs.bp ]
+do
+    sleep 0.01
+    echo "gs.bp dir not exist"
+done
+
+# start checking data
+# use thread pool here
+TASKNUM=1
+srun --mem=2000 --ntasks=$PARTITION $TASKNUM &>anapullmeta.log &
+
+
+# 2 4 8 16 32 64
+# run pdfpushmeta
+srun --mpi=pmi2 --mem-per-cpu=1000 --ntasks=$PARTITION ./pdfpushmeta gs.bp $TASKNUM &>pdfpushmeta.log &
+
+wait

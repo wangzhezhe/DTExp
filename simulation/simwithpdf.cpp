@@ -31,7 +31,7 @@ adios2::Variable<double> var_u_out, var_v_out;
  * Function to compute the PDF of a 2D slice
  */
 template <class T>
-void compute_pdf(const std::vector<T> &data,
+void compute_pdf(const std::vector<T> data,
                  const std::vector<std::size_t> &shape, const size_t start,
                  const size_t count, const size_t nbins, const T min,
                  const T max, std::vector<T> &pdf, std::vector<T> &bins)
@@ -142,9 +142,12 @@ bool DoCheck(int rank, int procs, unsigned int step, GrayScott &sim)
     //if (step >= 0)
     //if (step % 2 == 0)
     //if (step == 1)
-    //if (step % 2 == 0)
     //if (simStep == 1 || simStep == 10)
-    if (step >= 0)
+    //
+    //if(step%5==1 || step%5==2 || step%5==3 || simStep%5==4)
+    //if (step >= 0)
+    //if(step%2==1)
+    if(simStep%5==1)
     {
         return true;
     }
@@ -230,6 +233,17 @@ int main(int argc, char **argv)
 
     writer_main.open(settings.output);
 
+#ifdef ENABLE_TIMERS
+    Timer timer_compute;
+    Timer timer_check;
+    Timer timer_writer;
+
+    std::ostringstream log_fname;
+    log_fname << "gray_scott_pdf_pe_" << rank << ".log";
+
+    std::ofstream log(log_fname.str());
+#endif
+
     if (rank == 0)
     {
         print_settings(settings);
@@ -242,9 +256,15 @@ int main(int argc, char **argv)
     for (int i = 0; i < settings.steps;)
     {
 
+#ifdef ENABLE_TIMERS
+        MPI_Barrier(comm);
+        timer_compute.start();
+#endif
         for (int j = 0; j < settings.plotgap; j++)
         {
             sim.iterate();
+            //this time is used to construct different simulating-analysis patterns
+            std::this_thread::sleep_for(std::chrono::milliseconds(400));
             i++;
         }
 
@@ -253,23 +273,46 @@ int main(int argc, char **argv)
             std::cout << "engine type for sim output is " << io_main.EngineType() << std::endl;
         }
 
+#ifdef ENABLE_TIMERS
+        double timer_compute_value = timer_compute.stop();
+        MPI_Barrier(comm);
+        log << "timer compute sim: " << timer_compute_value << std::endl;
+        timer_check.start();
+#endif
         bool indicator = DoCheck(rank, procs, i, sim);
-        std::cout << "indicator is " << indicator << " for do check at ts: " << i << std::endl;
 
+#ifdef ENABLE_TIMERS
+        double timer_check_value = timer_check.stop();
+        MPI_Barrier(comm);
+        log << "timer check pdf: " << timer_check_value << std::endl;
+
+        timer_check.start();
+#endif
         if (rank == 0)
         {
-            std::cout << "Simulation at step " << i
-                      << " check and output step     " << i / settings.plotgap
-                      << std::endl;
+            std::cout << "indicator is " << indicator << " for do check at ts: " << i << std::endl;
         }
 
         if (indicator)
         {
+#ifdef ENABLE_TIMERS
+
+            timer_writer.start();
+#endif
+            MPI_Barrier(comm);
             writer_main.write(i, sim);
+
+#ifdef ENABLE_TIMERS
+            double timer_writer_value = timer_writer.stop();
+            MPI_Barrier(comm);
+            log << "timer writer: " << timer_writer_value << std::endl;
+
+#endif
         }
     }
 
     writer_main.close();
+
 
     if (rank == 0)
     {

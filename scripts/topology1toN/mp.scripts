@@ -1,13 +1,15 @@
 #!/bin/sh
-#SBATCH -N 8
+#SBATCH -N 12
 #SBATCH -p main
+#SBATCH --constraint=hal,broadwell,edr
+#SBATCH --ntasks-per-node=2
 #SBATCH -t 00:05:00
 
 # init
 source /home/zw241/cworkspace/src/DTExp/scripts/basic/init.sh
 
 # start original gray-scott
-mpirun -oversubscribe -n 8 ./gray-scott settings.json &>./gray-scott.log &
+srun --mpi=pmi2 --mem-per-cpu=1000 -n 4 ./gray-scott settings.json &>./gray-scott.log &
 
 while [ ! -d ./gs.bp ]
 do
@@ -17,12 +19,12 @@ done
 
 # start checking data
 # use thread pool here
-TASKNUM=64
-./anapullmeta 1 $TASKNUM &>anapullmeta.log &
+TASKNUM=1
+srun --mem=2000 ./anapullmeta 4 $TASKNUM &>anapullmeta.log &
 
 
 # 2 4 8 16 32 64
 # run pdfpushmeta
-./pdfpushmeta gs.bp $TASKNUM &>pdfpushmeta.log &
+srun --mpi=pmi2 --mem-per-cpu=1000 -n 4 ./pdfpushmeta gs.bp $TASKNUM &>pdfpushmeta.log &
 
 wait

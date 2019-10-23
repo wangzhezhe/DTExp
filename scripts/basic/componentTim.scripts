@@ -1,0 +1,41 @@
+#!/bin/sh
+
+#SBATCH -p main
+#SBATCH --constraint=hal,broadwell,edr
+#SBATCH -N 12
+#SBATCH --ntasks-per-node=24
+#SBATCH -t 00:06:00
+
+# use one assing 2G memory for 1CPU the core number is 28 for this set of the machine
+# the total number of the task shoule less than the numbe of the core on this machine
+# init
+
+source /home/zw241/cworkspace/src/DTExp/scripts/basic/init.sh
+
+srun --mpi=pmi2 --mem-per-cpu=1000 --ntasks=$PARTITION ./simwithpdf settings.json &> simwithpdf.log &
+
+# the pdf
+# use BP4, there is only dir
+while [ ! -d ./gs.bp ]
+do
+    sleep 0.01
+    echo "dir not exist"
+done
+
+# tested at the simwithpdf
+# srun --mpi=pmi2 --mem-per-cpu=2000 -n $PARTITION ./pdf_calc gs.bp pdf.bp 100 &
+
+
+if [ ! -d ./vtkdata ]; then
+  mkdir ./vtkdata;
+fi
+
+
+# the iso surface
+srun --mpi=pmi2 --mem-per-cpu=1000 --ntasks=$PARTITION ./isosurface gs.bp iso.bp 0.5 &> isosurface.log
+
+#it is dangerous to run in parallel, since the adios is not thread theafty
+
+#cat gray_scott_pe_0.log |grep -v total |cut -d$'\t' -f 3 |python3 py_statistic.py
+#cat isosurface_pe_0.log | grep -v total |cut -d$'\t' -f 4 | python3 py_statistic.py
+#cat pdf_pe_0.log |cut -d $'\t' -f 2| python3 py_statistic.py

@@ -6,6 +6,7 @@
 
 #include <adios2.h>
 #include <mpi.h>
+#include <thread>
 
 #include "../common/timer.hpp"
 #include "gray-scott.h"
@@ -73,6 +74,8 @@ int main(int argc, char **argv)
     {
         string reply = metaclient.Recordtimestart("WFTIMER");
         std::cout << "Timer received: " << reply << std::endl;
+        reply = metaclient.Recordtimestart("SIM");
+        std::cout << "Timer received: " << reply << std::endl;
     }
 
     Settings settings = Settings::from_json(argv[1]);
@@ -122,8 +125,14 @@ int main(int argc, char **argv)
         for (int j = 0; j < settings.plotgap; j++)
         {
             sim.iterate();
+            //this time is used to construct different simulating-analysis patterns
+            std::this_thread::sleep_for(std::chrono::milliseconds(400));
             i++;
         }
+
+        //this time is used to construct different simulating-analysis patterns
+        std::this_thread::sleep_for(std::chrono::milliseconds(400));
+
 
 #ifdef ENABLE_TIMERS
         double time_compute = timer_compute.stop();
@@ -180,7 +189,7 @@ int main(int argc, char **argv)
 
     if (rank == 0)
     {
-        std::string reply = metaclient.Recordtimetick("WFTIMER");
+        std::string reply = metaclient.Recordtimetick("SIM");
         std::cout << "Timer received for sim finish: " << reply << std::endl;
     }
 

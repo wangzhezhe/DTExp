@@ -1,5 +1,6 @@
 
-#!/bin/sh
+#!/bin/bash
+
 
 module load openmpi/2.1.1
 PJPATH_SCRATCH=/scratch/zw241/cworkspace/build/build_DTExp
@@ -24,16 +25,23 @@ fi
 
 # start metaserver for testing
 rm -rf Metaserver
+
+
 cp /home/zw241/cworkspace/build/build_MMServer/metaserver .
 sleep 1
-./metaserver eno1 &> metaserver.log &
+
+srun --mem=2000 ./metaserver eno1 &> metaserver.log &
 
 # check dir
 while [ ! -d ./Metaserver ]
 do
     sleep 0.01
-    echo "Metaserver dir not exist"
 done
+
+echo "start meta server"
+
 
 rm -rf multinodeip
 cp /home/zw241/cworkspace/build/build_ewfs/workflowserver .
+
+PARTITION=8

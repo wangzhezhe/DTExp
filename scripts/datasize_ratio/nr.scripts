@@ -1,3 +1,4 @@
+#!/bin/sh
 #SBATCH -p main
 #SBATCH --constraint=hal,broadwell,edr
 #SBATCH -N 12
@@ -18,25 +19,30 @@ export NOTIFY_SLEEP=1000
 export COORDINATOR_THRESHOLD=1024
 # 2 4 8 16 32 64
 export TRIGERNUM=1
-
-
 export DIR=.
 
+echo "start workflow server"
 srun --mem=2000 ./workflowserver 1500 eno1 $NUM_GROUPSIZE $NUM_GROUP $THREAD_POOL $NOTIFY_SLEEP $COORDINATOR_THRESHOLD 1 $TRIGERNUM >& workflowserver.log &
 
-sleep 0.5
+# check dir
+while [ ! -d ./multinodeip ]
+do
+    sleep 0.01
+done
 
+echo "start simulation"
 # start sim
-srun --mpi=pmi2 --mem-per-cpu=1000 -n 4 ./gray-scott ./settings.json &> sim.log &
+srun --mpi=pmi2 --mem-per-cpu=1000 --ntasks=$PARTITION ./gray-scott ./settings.json &> gray-scott.log &
 
 while [ ! -d ./gs.bp ]
 do
     sleep 0.01
-    echo "gs.bp dir not exist"
 done
 
+echo "start pdfpushevent"
 # start pdfpushevent 
-srun --mpi=pmi2 --mem-per-cpu=1000 -n 4 ./pdfpushevent gs.bp &>pdfpushevent.log &
+srun --mpi=pmi2 --mem-per-cpu=1000 --ntasks=$PARTITION ./pdfpushevent gs.bp &>pdfpushevent.log &
 
+echo "wait..."
 wait
 

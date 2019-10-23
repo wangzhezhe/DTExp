@@ -349,12 +349,16 @@ int main(int argc, char *argv[])
         //in real case, this results should be aggregated from different rank, than start checking at one place
         //this value shoule be decided based on the output of the compute pdf in real case
         bool indicator = false;
-        //if (simStep % 2 == 0)
+        //
         //if (simStep == 1)
         //if(simStep >= 0)
         //if (simStep % 2 == 0)
         //if (simStep == 1 || simStep == 10)
-        if(simStep >= 0)
+        //if(simStep%5==1 || simStep%5==2 || simStep%5==3 || simStep%5==4)
+        //if(simStep%5==1 || simStep%5==2 || simStep%5==3 || simStep%5==4)
+        //if(simStep%10==1)
+        //if(simStep%2==1)
+        if(simStep%5==1)
         {
             indicator = true;
         }
@@ -369,7 +373,11 @@ int main(int argc, char *argv[])
             //            step, comm);
             //replase by sleep for experiment to avoid the impact of IO
             Settings settings = Settings::from_json("./settings.json");
-            std::this_thread::sleep_for(std::chrono::milliseconds(5 * settings.L));
+            //sim<ana+c
+            std::this_thread::sleep_for(std::chrono::milliseconds(10 * settings.L));
+
+            //sim>ana+c
+            //std::this_thread::sleep_for(std::chrono::milliseconds(3*settings.L));
             /*
             std::string dir = "./vtkdata";
 

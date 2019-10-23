@@ -332,7 +332,13 @@ int main(int argc, char *argv[])
         //            step, comm);
         //replase by sleep for experiment to avoid the impact of IO
         Settings settings = Settings::from_json("./settings.json");
-        std::this_thread::sleep_for(std::chrono::milliseconds(5*settings.L));
+
+        //sim<ana+c
+        std::this_thread::sleep_for(std::chrono::milliseconds(10*settings.L));
+
+        //sim>ana+c
+        //std::this_thread::sleep_for(std::chrono::milliseconds(3*settings.L));
+
         /*
         std::string dir = "./vtkdata";
 
