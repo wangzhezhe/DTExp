@@ -2,14 +2,21 @@
 #!/bin/bash
 
 
-module load openmpi/2.1.1
-PJPATH_SCRATCH=/scratch/zw241/cworkspace/build/build_DTExp
+#module load openmpi/2.1.1
+
+module use /projects/community/modulefiles/
+module load gcc/5.4/openmpi/3.1.2-kholodvl
+
+#set by env
+#PJPATH_SCRATCH=/scratch/zw241/cworkspace/build/build_DTExp
+#PJPATH_HOME=/home/zw241/cworkspace/src/DTExp
+
 PJPATH_HOME=/home/zw241/cworkspace/src/DTExp
 
-
-cd $PJPATH_SCRATCH
+#cd $PJPATH_SCRATCH
 cp $PJPATH_HOME/adios2.xml .
 cp $PJPATH_HOME/simulation/settings.json .
+cp ../anastartbyevent .
 
 # clean the previous adios file
 rm *.log

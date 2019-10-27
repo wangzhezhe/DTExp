@@ -142,12 +142,14 @@ bool DoCheck(int rank, int procs, unsigned int step, GrayScott &sim)
     //if (step >= 0)
     //if (step % 2 == 0)
     //if (step == 1)
-    //if (simStep == 1 || simStep == 10)
     //
     //if(step%5==1 || step%5==2 || step%5==3 || simStep%5==4)
     //if (step >= 0)
     //if(step%2==1)
-    if(simStep%5==1)
+    //if(simStep%5==1 || simStep%5==2 || simStep%5==3 || simStep%5==4)
+    //if(true)
+    //if(simStep%5==1)
+    if(false)
     {
         return true;
     }
@@ -263,10 +265,12 @@ int main(int argc, char **argv)
         for (int j = 0; j < settings.plotgap; j++)
         {
             sim.iterate();
-            //this time is used to construct different simulating-analysis patterns
-            std::this_thread::sleep_for(std::chrono::milliseconds(400));
+
             i++;
         }
+
+        //this time is used to construct different simulating-analysis patterns
+        std::this_thread::sleep_for(std::chrono::milliseconds(400));
 
         if (i == settings.plotgap)
         {

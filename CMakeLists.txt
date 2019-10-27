@@ -162,7 +162,7 @@ simulation/settings.cpp
 ${PROTO_SRCS} 
 ${GRPC_SRCS})
 
-target_link_libraries(anapullmeta adios2::adios2 MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf ${VTK_LIBRARIES})
+target_link_libraries(anapullmeta gRPC::grpc++_reflection protobuf::libprotobuf)
 target_include_directories(anapullmeta PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )

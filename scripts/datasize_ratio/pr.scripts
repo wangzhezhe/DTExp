@@ -3,7 +3,7 @@
 #SBATCH --constraint=hal,broadwell,edr
 #SBATCH -N 12
 #SBATCH --ntasks-per-node=24
-#SBATCH -t 00:06:00
+#SBATCH -t 00:03:00
 
 # use one assing 2G memory for 1CPU the core number is 28 for this set of the machine
 # the total number of the task shoule less than the numbe of the core on this machine
@@ -12,7 +12,7 @@
 source /home/zw241/cworkspace/src/DTExp/scripts/basic/init.sh
 
 # start original gray-scott
-srun --mpi=pmi2 --mem-per-cpu=1000 --ntasks=$PARTITION ./simwithpdf settings.json &> simwithpdf.log &
+srun --mpi=pmix_v2 --mem-per-cpu=1000 --ntasks=$PARTITION ../simwithpdf settings.json &> simwithpdf.log &
 
 while [ ! -d ./gs.bp ]
 do
@@ -20,7 +20,7 @@ do
 done
 
 echo "start the isosurface"
-srun --mpi=pmi2 --mem-per-cpu=1000 --ntasks=$PARTITION ./isosurface gs.bp iso.bp 0.5 &> isosurface.log &
+srun --mpi=pmix_v2 --mem-per-cpu=1000 --ntasks=$PARTITION ../isosurface gs.bp iso.bp 0.5 &> isosurface.log &
 
 
 wait

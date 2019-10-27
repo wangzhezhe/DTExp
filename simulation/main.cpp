@@ -125,8 +125,6 @@ int main(int argc, char **argv)
         for (int j = 0; j < settings.plotgap; j++)
         {
             sim.iterate();
-            //this time is used to construct different simulating-analysis patterns
-            std::this_thread::sleep_for(std::chrono::milliseconds(400));
             i++;
         }
 

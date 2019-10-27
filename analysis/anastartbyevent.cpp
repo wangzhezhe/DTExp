@@ -130,10 +130,10 @@ void pullandStartAna(int ts, int rank, partitionInfo &pinfo, adios2::IO inIO, ad
     //replase by sleep for experiment to avoid the impact of IO
     Settings settings = Settings::from_json("./settings.json");
     //sim<ana+c
-    std::this_thread::sleep_for(std::chrono::milliseconds(10 * settings.L));
+    //std::this_thread::sleep_for(std::chrono::milliseconds(10 * settings.L));
 
     //sim>ana+c
-    //std::this_thread::sleep_for(std::chrono::milliseconds(3*settings.L));
+    std::this_thread::sleep_for(std::chrono::milliseconds(3*settings.L));
 
     /*
     std::string dir = "./vtkdata";
@@ -199,7 +199,6 @@ int main(int argc, char *argv[])
     std::string recordkey = "process" + std::string(argv[1]);
     if (rank == 0)
     {
-
         metaclient.Recordtime(recordkey);
     }
 

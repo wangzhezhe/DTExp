@@ -3,7 +3,7 @@
 #SBATCH --constraint=hal,broadwell,edr
 #SBATCH -N 12
 #SBATCH --ntasks-per-node=24
-#SBATCH -t 00:06:00
+#SBATCH -t 00:03:00
 
 # init
 source /home/zw241/cworkspace/src/DTExp/scripts/basic/init.sh
@@ -32,7 +32,7 @@ done
 
 echo "start simulation"
 # start sim
-srun --mpi=pmi2 --mem-per-cpu=1000 --ntasks=$PARTITION ./gray-scott ./settings.json &> gray-scott.log &
+srun --mpi=pmix_v2 --mem-per-cpu=1000 --ntasks=$PARTITION ../gray-scott ./settings.json &> gray-scott.log &
 
 while [ ! -d ./gs.bp ]
 do
@@ -41,7 +41,7 @@ done
 
 echo "start pdfpushevent"
 # start pdfpushevent 
-srun --mpi=pmi2 --mem-per-cpu=1000 --ntasks=$PARTITION ./pdfpushevent gs.bp &>pdfpushevent.log &
+srun --mpi=pmix_v2 --mem-per-cpu=1000 --ntasks=$PARTITION ../pdfpushevent gs.bp &>pdfpushevent.log &
 
 echo "wait..."
 wait

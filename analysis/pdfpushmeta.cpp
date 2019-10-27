@@ -277,13 +277,14 @@ int main(int argc, char *argv[])
         //if (simStep == 1 || simStep == 10)
         //if (simStep >= 0)
         //if(simStep%5==1 || simStep%5==2 || simStep%5==3 || simStep%5==4)
-        //
-        //
-        //
         //if(simStep%5==1 || simStep%5==2 || simStep%5==3 || simStep%5==4)
         //if(simStep >= 0)
         //if(simStep%2==1)
-        if(simStep%5==1)
+        //if(simStep%5==1)
+        //if(simStep%5==1 || simStep%5==2 || simStep%5==3 || simStep%5==4)
+        //if(true)
+        //if(simStep%5==1)
+        if(false)
         {
             indicator = true;
         }

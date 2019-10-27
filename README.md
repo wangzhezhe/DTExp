@@ -11,3 +11,13 @@ Explain four patterns in detail
 **The metadata service**
 
 **The event matching service**
+
+
+**temp**
+
+module use /projects/community/modulefiles/
+module load gcc/5.4/openmpi/3.1.2-kholodvl
+
+
+on amarel
+cmake ~/cworkspace/src/DTExp/ -DADIOS2_DIR=~/cworkspace/build/build_ADIOS2/ -DVTK_DIR=~/cworkspace/build/build_vtk -DUSE_TIMERS=ON -DVTK=ON
