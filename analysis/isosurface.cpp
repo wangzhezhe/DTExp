@@ -334,10 +334,10 @@ int main(int argc, char *argv[])
         Settings settings = Settings::from_json("./settings.json");
 
         //sim<ana+c
-        //std::this_thread::sleep_for(std::chrono::milliseconds(10*settings.L));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10*settings.L));
 
         //sim>ana+c
-        std::this_thread::sleep_for(std::chrono::milliseconds(3*settings.L));
+        //std::this_thread::sleep_for(std::chrono::milliseconds(3*settings.L));
 
         /*
         std::string dir = "./vtkdata";

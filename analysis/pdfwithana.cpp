@@ -361,8 +361,8 @@ int main(int argc, char *argv[])
         //if(simStep%5==1)
         //if(simStep%5==1 || simStep%5==2|| simStep%5==3 || simStep%5==4)
         //if(true)
-        //if(simStep%5==1)
-        if(false)
+        //if(simStep%5==1 || simStep%5==2 || simStep%5==3 || simStep%5==4)
+        if(true)
         {
             indicator = true;
         }
@@ -378,10 +378,10 @@ int main(int argc, char *argv[])
             //replase by sleep for experiment to avoid the impact of IO
             Settings settings = Settings::from_json("./settings.json");
             //sim<ana+c
-            //std::this_thread::sleep_for(std::chrono::milliseconds(10 * settings.L));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10 * settings.L));
 
             //sim>ana+c
-            std::this_thread::sleep_for(std::chrono::milliseconds(3*settings.L));
+            //std::this_thread::sleep_for(std::chrono::milliseconds(3*settings.L));
             /*
             std::string dir = "./vtkdata";
 

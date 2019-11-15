@@ -22,7 +22,7 @@ export TRIGERNUM=1
 export DIR=.
 
 echo "start workflow server"
-srun --mem=2000 ./workflowserver 1500 eno1 $NUM_GROUPSIZE $NUM_GROUP $THREAD_POOL $NOTIFY_SLEEP $COORDINATOR_THRESHOLD 1 $TRIGERNUM >& workflowserver.log &
+srun --mem-per-cpu=2000 ./workflowserver 1500 eno1 $NUM_GROUPSIZE $NUM_GROUP $THREAD_POOL $NOTIFY_SLEEP $COORDINATOR_THRESHOLD 1 $TRIGERNUM >& workflowserver.log &
 
 # check dir
 while [ ! -d ./multinodeip ]

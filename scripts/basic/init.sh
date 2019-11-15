@@ -37,7 +37,7 @@ rm -rf Metaserver
 cp /home/zw241/cworkspace/build/build_MMServer/metaserver .
 sleep 1
 
-srun --mem=2000 ./metaserver eno1 &> metaserver.log &
+srun --mem-per-cpu=2000 --ntasks=1 --cpus-per-task=16 ./metaserver eno1 &> metaserver.log &
 
 # check dir
 while [ ! -d ./Metaserver ]

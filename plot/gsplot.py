@@ -77,7 +77,7 @@ def Plot2D(plane_direction, data, args, fullshape, step, fontsize):
         writer.EndStep()
     else:
         imgfile = args.outfile+"{0:0>5}".format(step)+"_" + plane_direction + ".png"
-        fig.savefig(imgfile)
+        fig.savefig(imgfile,bbox_inches='tight')
 
     plt.clf()
 

@@ -19,12 +19,13 @@ done
 
 # start checking data
 # use thread pool here
-TASKNUM=1
-srun --mem-per-cpu=2000 ../anapullmeta 4 $TASKNUM &>anapullmeta.log &
+TASKNUM=32
+srun --mem-per-cpu=1000 --ntasks=1 --cpus-per-task=16 ../anapullmeta 4 $TASKNUM &>anapullmeta.log &
 
 
 # 2 4 8 16 32 64
 # run pdfpushmeta
-srun --mpi=pmix_v2 --mem-per-cpu=1000 --ntasks=$PARTITION ../pdfpushmeta gs.bp $TASKNUM &>pdfpushmeta.log &
+TRIGERNUM=2
+srun --mpi=pmix_v2 --mem-per-cpu=1000 --ntasks=$PARTITION ../pdfpushmeta gs.bp $TRIGERNUM &>pdfpushmeta.log &
 
 wait
