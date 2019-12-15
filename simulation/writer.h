@@ -7,6 +7,11 @@
 #include "gray-scott.h"
 #include "settings.h"
 
+#include <vtkSmartPointer.h>
+#include <vtkXMLImageDataWriter.h>
+#include <vtkXMLImageDataReader.h>
+#include <vtkImageData.h>
+
 class Writer
 {
 public:
@@ -14,6 +19,7 @@ public:
     void open(const std::string &fname);
     void write(int &step, const GrayScott &sim);
     void close();
+    void writeToVTK(std::string fname, const GrayScott &sim);
 
 protected:
     Settings settings;

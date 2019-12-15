@@ -183,6 +183,7 @@ int main(int argc, char *argv[])
         auto varNormal = inIO.InquireVariable<double>("normal");
         auto varStep = inIO.InquireVariable<int>("step");
 
+        //get the global data
         if (varPoint.Shape().size() > 0 || varCell.Shape().size() > 0) {
             varPoint.SetSelection(
                 {{0, 0}, {varPoint.Shape()[0], varPoint.Shape()[1]}});
@@ -207,9 +208,10 @@ int main(int argc, char *argv[])
 #endif
 
         std::cout << "find_blobs at step " << step << std::endl;
-
+        
+        //transfer the data into the mesh presentation
         auto polyData = read_mesh(points, cells, normals);
-        // find_blobs(polyData);
+        find_blobs(polyData);
         find_largest_blob(polyData);
 
 #ifdef ENABLE_TIMERS

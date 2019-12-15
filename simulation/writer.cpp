@@ -29,9 +29,12 @@ void define_bpvtk_attribute(const Settings &s, adios2::IO &io)
         io.DefineAttribute<std::string>("vtk.xml", imageData);
     };
 
-    if (s.mesh_type == "image") {
+    if (s.mesh_type == "image")
+    {
         lf_VTKImage(s, io);
-    } else if (s.mesh_type == "structured") {
+    }
+    else if (s.mesh_type == "structured")
+    {
         throw std::invalid_argument(
             "ERROR: mesh_type=structured not yet "
             "   supported in settings.json, use mesh_type=image instead\n");
@@ -49,7 +52,8 @@ Writer::Writer(const Settings &settings, const GrayScott &sim, adios2::IO io)
     io.DefineAttribute<double>("Dv", settings.Dv);
     io.DefineAttribute<double>("noise", settings.noise);
     // define VTK visualization schema as an attribute
-    if (!settings.mesh_type.empty()) {
+    if (!settings.mesh_type.empty())
+    {
         define_bpvtk_attribute(settings, io);
     }
 
@@ -63,14 +67,15 @@ Writer::Writer(const Settings &settings, const GrayScott &sim, adios2::IO io)
                                   {sim.offset_z, sim.offset_y, sim.offset_x},
                                   {sim.size_z, sim.size_y, sim.size_x});
 
-    if (settings.adios_memory_selection) {
+    if (settings.adios_memory_selection)
+    {
         var_u.SetMemorySelection(
             {{1, 1, 1}, {sim.size_z + 2, sim.size_y + 2, sim.size_x + 2}});
         var_v.SetMemorySelection(
             {{1, 1, 1}, {sim.size_z + 2, sim.size_y + 2, sim.size_x + 2}});
     }
-    
-    std::cout<< "offset x: " << sim.offset_x << "offset y: " << sim.offset_y << "offset z: " << sim.size_z << std::endl;
+
+    std::cout << "offset x: " << sim.offset_x << "offset y: " << sim.offset_y << "offset z: " << sim.size_z << std::endl;
 
     var_step = io.DefineVariable<int>("step");
 }
@@ -82,7 +87,45 @@ void Writer::open(const std::string &fname)
     //io.SetParameters({{"verbose", "4"}, {"writerID", fname}});
 }
 
-void Writer::write(int& step, const GrayScott &sim)
+void Writer::writeToVTK(std::string fname, const GrayScott &sim)
+{
+
+    // Create an image data
+    vtkSmartPointer<vtkImageData> imageData =
+        vtkSmartPointer<vtkImageData>::New();
+
+    // Specify the size of the image data
+    imageData->SetOrigin(sim.offset_x,sim.offset_y,sim.offset_z);
+    imageData->SetDimensions(sim.size_x, sim.size_y, sim.size_z);
+    imageData->AllocateScalars(VTK_DOUBLE, 1);
+    //write u
+    //using the image write
+
+    //write the data u
+
+    std::vector<double> u = sim.u_ghost();
+
+    for (int z = 0; z < sim.size_z; z++)
+    {
+        for (int y = 0; y < sim.size_y; y++)
+        {
+            for (int x = 0; x < sim.size_x; x++)
+            {
+                int i = x + y * (sim.size_x + 2) + z * (sim.size_x + 2) * (sim.size_y + 2);
+                double *pixel = static_cast<double *>(imageData->GetScalarPointer(x, y, z));
+                pixel[0] = u[i];
+            }
+        }
+    }
+
+    vtkSmartPointer<vtkXMLImageDataWriter> writer =
+        vtkSmartPointer<vtkXMLImageDataWriter>::New();
+    writer->SetFileName(fname.c_str());
+    writer->SetInputData(imageData);
+    writer->Write();
+}
+
+void Writer::write(int &step, const GrayScott &sim)
 {
 
     /*
@@ -121,16 +164,16 @@ void Writer::write(int& step, const GrayScott &sim)
     }
 
     */
-        std::vector<double> u = sim.u_noghost();
-        std::vector<double> v = sim.v_noghost();
+    std::vector<double> u = sim.u_noghost();
+    std::vector<double> v = sim.v_noghost();
 
-        writer.BeginStep();
-        writer.Put<int>(var_step, &step);
-        writer.Put<double>(var_u, u.data());
-        writer.Put<double>(var_v, v.data());
-        writer.EndStep();
+    writer.BeginStep();
+    writer.Put<int>(var_step, &step);
+    writer.Put<double>(var_u, u.data());
+    writer.Put<double>(var_v, v.data());
+    writer.EndStep();
 
-        /*
+    /*
 
         adios2::ADIOS adios(MPI_COMM_WORLD, adios2::DebugON);
         adios2::IO sstIO = adios.DeclareIO("myIO");
@@ -149,7 +192,6 @@ void Writer::write(int& step, const GrayScott &sim)
         sstWriter.EndStep();
         sstWriter.Close();
         */
-
 }
 
 void Writer::close() { writer.Close(); }

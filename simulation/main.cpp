@@ -174,6 +174,16 @@ int main(int argc, char **argv)
                 std::cout << "---using the inline engine" << std::endl;
             }
         }
+
+        //write to vtk
+                std::string dir = "./vtkdataraw";
+
+        char countstr[50];
+        sprintf(countstr, "%02d_%04d", rank, i);
+
+        std::string fname = dir + "/vtkraw_" + std::string(countstr) + ".vtk";
+        //the format here is the vtk
+        writer_main.writeToVTK(fname, sim);
     }
 
     writer_main.close();

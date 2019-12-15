@@ -30,6 +30,7 @@ if (VTK_ROOT)
 endif(VTK_ROOT)
 
 if (VTK)
+
   message(STATUS "Configuring VTK apps")
 
   find_package(VTK COMPONENTS
@@ -39,8 +40,6 @@ if (VTK)
   )
 
   if(VTK_FOUND)
-
-
 
   endif(VTK_FOUND)
 
@@ -130,29 +129,15 @@ target_include_directories(pdfpushevent PUBLIC
 )
 
 
-add_executable(gray-scott
-  simulation/main.cpp
-  simulation/gray-scott.cpp
-  simulation/settings.cpp
-  simulation/writer.cpp
-  putgetMeta/metaclient.cpp 
-utils/ipTool.cpp
-simulation/settings.cpp
-${PROTO_SRCS} 
-${GRPC_SRCS})
-
-target_link_libraries(gray-scott adios2::adios2 MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf)
-target_include_directories(gray-scott PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-)
-
-
 if (VTK)
 find_package(VTK COMPONENTS
     FiltersCore
     IOImage
     IOXML
+    CommonCore
+    FiltersSources
 )
+
 
 add_executable(anapullmeta 
 analysis/anapullmeta.cpp 
@@ -166,6 +151,24 @@ target_link_libraries(anapullmeta adios2::adios2 MPI::MPI_C gRPC::grpc++_reflect
 target_include_directories(anapullmeta PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
+
+
+add_executable(gray-scott
+  simulation/main.cpp
+  simulation/gray-scott.cpp
+  simulation/settings.cpp
+  simulation/writer.cpp
+  putgetMeta/metaclient.cpp 
+utils/ipTool.cpp
+simulation/settings.cpp
+${PROTO_SRCS} 
+${GRPC_SRCS})
+
+target_link_libraries(gray-scott adios2::adios2 MPI::MPI_C gRPC::grpc++_reflection protobuf::libprotobuf ${VTK_LIBRARIES})
+target_include_directories(gray-scott PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+
 
 add_executable(anastartbyevent 
 analysis/anastartbyevent.cpp 
@@ -194,7 +197,9 @@ target_link_libraries(simwithpdf
 adios2::adios2 
 MPI::MPI_C 
 gRPC::grpc++_reflection 
-protobuf::libprotobuf)
+protobuf::libprotobuf
+${VTK_LIBRARIES}
+)
 target_include_directories(simwithpdf PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )

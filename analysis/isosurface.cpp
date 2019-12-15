@@ -186,7 +186,6 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &procs);
 
-
     int dims[3] = {0};
     MPI_Dims_create(procs, 3, dims);
     size_t npx = dims[0];
@@ -202,7 +201,6 @@ int main(int argc, char *argv[])
     size_t py = coords[1];
     size_t pz = coords[2];
 
-
     if (argc < 4)
     {
         if (rank == 0)
@@ -213,19 +211,25 @@ int main(int argc, char *argv[])
         MPI_Abort(MPI_COMM_WORLD, -1);
     }
 
-
     const std::string input_fname(argv[1]);
     const std::string output_fname(argv[2]);
     const double isovalue = std::stod(argv[3]);
 
-
     adios2::ADIOS adios("adios2.xml", comm, adios2::DebugON);
 
     adios2::IO inIO = adios.DeclareIO("SimulationOutput");
-    
     adios2::Engine reader = inIO.Open(input_fname, adios2::Mode::Read);
-    
-    
+
+    adios2::IO outIO = adios.DeclareIO("IsosurfaceOutput");
+    adios2::Engine writer = outIO.Open(output_fname, adios2::Mode::Write);
+
+    auto varPoint =
+        outIO.DefineVariable<double>("point", {1, 3}, {0, 0}, {1, 3});
+    auto varCell = outIO.DefineVariable<int>("cell", {1, 3}, {0, 0}, {1, 3});
+    auto varNormal =
+        outIO.DefineVariable<double>("normal", {1, 3}, {0, 0}, {1, 3});
+    auto varOutStep = outIO.DefineVariable<int>("step");
+
     std::vector<double> u;
     int step;
 
@@ -246,7 +250,7 @@ int main(int argc, char *argv[])
     {
         MetaClient metaclient = getMetaClient();
         std::string reply = metaclient.Recordtimestart("PROCESS");
-        std::cout << "start PROCESS reply " << reply <<std::endl;
+        std::cout << "start PROCESS reply " << reply << std::endl;
     }
 
     while (true)
@@ -276,7 +280,6 @@ int main(int argc, char *argv[])
             }
             continue;
         }
-
 
         adios2::Variable<double> varU = inIO.InquireVariable<double>("U");
         const adios2::Variable<int> varStep = inIO.InquireVariable<int>("step");
@@ -312,12 +315,12 @@ int main(int argc, char *argv[])
         reader.Get<double>(varU, u);
         reader.Get<int>(varStep, step);
         reader.EndStep();
-        if (rank==0){
-        MetaClient metaclient = getMetaClient();
-        std::string reply = metaclient.Recordtimetick("PROCESS");
-        std::cout << "ok for getting data " << step << " tick reply: " << reply << std::endl;
+        if (rank == 0)
+        {
+            MetaClient metaclient = getMetaClient();
+            std::string reply = metaclient.Recordtimetick("PROCESS");
+            std::cout << "ok for getting data " << step << " tick reply: " << reply << std::endl;
         }
-
 
 #ifdef ENABLE_TIMERS
         double time_read = timer_read.stop();
@@ -328,27 +331,27 @@ int main(int argc, char *argv[])
         //todo add the checking operation for the pdf
         auto polyData = compute_isosurface(varU, u, isovalue);
 
-        //write_adios(writer, polyData, varPoint, varCell, varNormal, varOutStep,
-        //            step, comm);
+        write_adios(writer, polyData, varPoint, varCell, varNormal, varOutStep,
+                    step, comm);
         //replase by sleep for experiment to avoid the impact of IO
         Settings settings = Settings::from_json("./settings.json");
 
         //sim<ana+c
-        std::this_thread::sleep_for(std::chrono::milliseconds(10*settings.L));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10 * settings.L));
 
         //sim>ana+c
         //std::this_thread::sleep_for(std::chrono::milliseconds(3*settings.L));
 
-        /*
+        
         std::string dir = "./vtkdata";
 
         char countstr[50];
-        sprintf(countstr, "%04d", step);
+        sprintf(countstr, "%02d_%04d", rank, step);
 
         std::string fname = dir + "/vtkiso_" + std::string(countstr) + ".vtk";
         //the format here is the vtk
         write_vtk(fname, polyData);
-        */
+        
         std::cout << "ok for ts " << step << std::endl;
 
 #ifdef ENABLE_TIMERS
