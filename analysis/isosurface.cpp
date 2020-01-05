@@ -24,6 +24,7 @@
 #include <thread>
 #include "../simulation/settings.h"
 
+//input is the vector and the output is the vtk poly data
 vtkSmartPointer<vtkPolyData>
 compute_isosurface(const adios2::Variable<double> &varField,
                    const std::vector<double> &field, double isovalue)
@@ -39,6 +40,8 @@ compute_isosurface(const adios2::Variable<double> &varField,
     importer->SetDataExtentToWholeExtent();
     importer->SetDataScalarTypeToDouble();
     importer->SetNumberOfScalarComponents(1);
+
+    //there is memory copy for this operation
     importer->SetImportVoidPointer(const_cast<double *>(field.data()));
 
     // Run the marching cubes algorithm
